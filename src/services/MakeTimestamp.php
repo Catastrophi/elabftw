@@ -38,9 +38,6 @@ class MakeTimestamp extends AbstractMake
     /** @var Config $Config instance of Config */
     private $Config;
 
-    /** @var Experiments $Experiments instance of Experiments */
-    private $Experiments;
-
     /** @var string $pdfPath full path to pdf */
     private $pdfPath = '';
 
@@ -556,7 +553,7 @@ class MakeTimestamp extends AbstractMake
         $out .= "<br>OID: " . $oid;
         $out .= "<br>Hash algorithm: " . $hash;
         $out .= "<br>Message data: 0x" . $message;
-        $out .= "<br>Timestamp: " . $timestamp->format('Y-m-d H:i:s');
+        $out .= "<br>Timestamp: " . $timestamp->format('Y-m-d H:i:s P');
 
         $out .= "<br><br><strong>TSA info:</strong>";
         $out .= "<br>TSA: " . $tsa;
