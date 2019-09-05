@@ -274,6 +274,8 @@ CREATE TABLE `items` (
   `rating` tinyint(10) DEFAULT '0',
   `category` int(255) UNSIGNED NOT NULL,
   `locked` tinyint(3) UNSIGNED DEFAULT NULL,
+  `lockedby` int(10) UNSIGNED DEFAULT NULL,
+  `lockedwhen` timestamp NULL DEFAULT NULL,
   `userid` int(10) UNSIGNED NOT NULL,
   `visibility` varchar(255) NOT NULL DEFAULT 'team',
   `available` tinyint(1) NOT NULL DEFAULT '1'
@@ -559,6 +561,7 @@ CREATE TABLE `users` (
   `pdfa` tinyint(1) NOT NULL DEFAULT '1',
   `pdf_format` varchar(255) NOT NULL DEFAULT 'A4',
   `allow_edit` tinyint(1) NOT NULL DEFAULT '0',
+  `allow_group_edit` tinyint(1) NOT NULL DEFAULT '0',
   `last_login` DATETIME NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
@@ -711,8 +714,8 @@ ALTER TABLE `tags`
 --
 -- Indexes for table `tags2entity`
 --
-ALTER TABLE `tags2entity`
-  ADD KEY `fk_tags2entity_tags_id` (`tag_id`);
+-- ALTER TABLE `tags2entity`
+-- ADD KEY `fk_tags2entity_tags_id` (`tag_id`);
 
 --
 -- Indexes for table `teams`
@@ -758,9 +761,9 @@ ALTER TABLE `users`
 --
 -- Indexes for table `users2team_groups`
 --
-ALTER TABLE `users2team_groups`
-  ADD KEY `fk_users2team_groups_users_userid` (`userid`),
-  ADD KEY `fk_users2team_groups_team_groups_id` (`groupid`);
+-- ALTER TABLE `users2team_groups`
+  -- ADD KEY `fk_users2team_groups_users_userid` (`userid`),
+  -- ADD KEY `fk_users2team_groups_team_groups_id` (`groupid`);
 
 --
 -- AUTO_INCREMENT for dumped tables
@@ -982,8 +985,8 @@ ALTER TABLE `tags`
 --
 -- Constraints for table `tags2entity`
 --
-ALTER TABLE `tags2entity`
-  ADD CONSTRAINT `fk_tags2entity_tags_id` FOREIGN KEY (`tag_id`) REFERENCES `tags` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+-- ALTER TABLE `tags2entity`
+  -- ADD CONSTRAINT `fk_tags2entity_tags_id` FOREIGN KEY (`tag_id`) REFERENCES `tags` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `team_events`
@@ -1010,12 +1013,55 @@ ALTER TABLE `todolist`
 ALTER TABLE `users`
   ADD CONSTRAINT `fk_users_teams_id` FOREIGN KEY (`team`) REFERENCES `teams` (`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
+-- schema 49
+CREATE TABLE `items_steps` (
+    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+    `item_id` int(10) unsigned NOT NULL,
+    `body` text NOT NULL,
+    `ordering` int(10) unsigned DEFAULT NULL,
+    `finished` tinyint(1) NOT NULL DEFAULT '0',
+    `finished_time` datetime DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    KEY `fk_items_steps_items_id` (`item_id`),
+    CONSTRAINT `fk_items_steps_items_id` FOREIGN KEY (`item_id`) REFERENCES `items` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE TABLE `experiments_templates_steps` (
+    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+    `item_id` int(10) unsigned NOT NULL,
+    `body` text NOT NULL,
+    `ordering` int(10) unsigned DEFAULT NULL,
+    `finished` tinyint(1) NOT NULL DEFAULT '0',
+    `finished_time` datetime DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    KEY `fk_experiments_templates_steps_items_id` (`item_id`),
+    CONSTRAINT `fk_experiments_templates_steps_items_id` FOREIGN KEY (`item_id`) REFERENCES `experiments_templates` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE TABLE `items_links` (
+    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+    `item_id` int(10) unsigned NOT NULL,
+    `link_id` int(10) unsigned NOT NULL,
+    PRIMARY KEY (`id`),
+    KEY `fk_items_links_items_id` (`item_id`),
+    KEY `fk_items_links_items_id2` (`link_id`),
+    CONSTRAINT `fk_items_links_items_id` FOREIGN KEY (`item_id`) REFERENCES `items` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_items_links_items_id2` FOREIGN KEY (`link_id`) REFERENCES `items` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE TABLE `experiments_templates_links` (
+    `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+    `item_id` int(10) unsigned NOT NULL,
+    `link_id` int(10) unsigned NOT NULL,
+    PRIMARY KEY (`id`),
+    KEY `fk_experiments_templates_links_items_id` (`item_id`),
+    KEY `fk_experiments_templates_links_items_id2` (`link_id`),
+    CONSTRAINT `fk_experiments_templates_links_experiments_templates_id` FOREIGN KEY (`item_id`) REFERENCES `experiments_templates` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT `fk_experiments_templates_links_items_id` FOREIGN KEY (`link_id`) REFERENCES `items` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
+);
 --
 -- Constraints for table `users2team_groups`
 --
-ALTER TABLE `users2team_groups`
-  ADD CONSTRAINT `fk_users2team_groups_team_groups_id` FOREIGN KEY (`groupid`) REFERENCES `team_groups` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT `fk_users2team_groups_users_userid` FOREIGN KEY (`userid`) REFERENCES `users` (`userid`) ON DELETE CASCADE ON UPDATE CASCADE;
+-- ALTER TABLE `users2team_groups`
+--  ADD CONSTRAINT `fk_users2team_groups_team_groups_id` FOREIGN KEY (`groupid`) REFERENCES `team_groups` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
+--  ADD CONSTRAINT `fk_users2team_groups_users_userid` FOREIGN KEY (`userid`) REFERENCES `users` (`userid`) ON DELETE CASCADE ON UPDATE CASCADE;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

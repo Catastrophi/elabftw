@@ -10,9 +10,11 @@ declare(strict_types=1);
 
 namespace Elabftw\Services;
 
+use Elabftw\Elabftw\Tools;
 use Elabftw\Exceptions\FilesystemErrorException;
-use Gmagick;
+use Elabftw\Exceptions\ImproperActionException;
 use Exception;
+use Gmagick;
 
 /**
  * Create a thumbnail from a file
@@ -41,7 +43,7 @@ final class MakeThumbnail
         'image/x-eps',
         'image/svg+xml',
         'application/pdf',
-        'application/postscript'
+        'application/postscript',
     );
 
     /** @var string $filePath full path to file */
@@ -62,9 +64,46 @@ final class MakeThumbnail
     {
         $this->filePath = $filePath;
         // get mime type of the file
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $this->mime = finfo_file($finfo, $this->filePath);
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $mime = $finfo->file($this->filePath);
+        if ($mime === false) {
+            throw new ImproperActionException('Cannot detect the file type for thumbnail!');
+        }
+        $this->mime = $mime;
         $this->thumbPath = $this->filePath . '_th.jpg';
+    }
+
+    /**
+     * Create a jpg thumbnail from images of type jpeg, png, gif, tiff, eps and pdf.
+     *
+     * @param bool $force force regeneration of thumbnail even if file exist (useful if upload was replaced)
+     * @return void
+     */
+    public function makeThumb($force = false): void
+    {
+        if (\is_readable($this->filePath) === false) {
+            throw new FilesystemErrorException('File not found! (' . \substr($this->filePath, 0, 42) . '…)');
+        }
+
+        // do nothing for big files
+        if (\filesize($this->filePath) > self::BIG_FILE_THRESHOLD) {
+            return;
+        }
+
+        // don't bother if the thumbnail exists already
+        if (\file_exists($this->thumbPath) && $force === false) {
+            return;
+        }
+
+        // use gmagick preferentially
+        // FIXME at the moment there is a bug with only png files on thumbnail generation, so use GD for png
+        if (\extension_loaded('gmagick') && Tools::getExt($this->filePath) !== 'png') {
+            $this->useGmagick();
+
+        // if we don't have gmagick, try with gd
+        } elseif (extension_loaded('gd')) {
+            $this->useGd();
+        }
     }
 
     /**
@@ -130,7 +169,7 @@ final class MakeThumbnail
         $height = imagesy($sourceImage);
 
         // find the "desired height" of this thumbnail, relative to the desired width
-        $desiredHeight = (int) floor($height * (self::WIDTH / $width));
+        $desiredHeight = (int) floor((float) $height * ((float) self::WIDTH / (float) $width));
 
         // create a new, "virtual" image
         $virtualImage = imagecreatetruecolor(self::WIDTH, $desiredHeight);
@@ -143,37 +182,5 @@ final class MakeThumbnail
 
         // create the physical thumbnail image to its destination (85% quality)
         imagejpeg($virtualImage, $this->thumbPath, 85);
-    }
-
-    /**
-     * Create a jpg thumbnail from images of type jpeg, png, gif, tiff, eps and pdf.
-     *
-     * @param bool $force force regeneration of thumbnail even if file exist (useful if upload was replaced)
-     * @return void
-     */
-    public function makeThumb($force = false): void
-    {
-        if (\is_readable($this->filePath) === false) {
-            throw new FilesystemErrorException("File not found! (" . \substr($this->filePath, 0, 42) . "…)");
-        }
-
-        // do nothing for big files
-        if (\filesize($this->filePath) > self::BIG_FILE_THRESHOLD) {
-            return;
-        }
-
-        // don't bother if the thumbnail exists already
-        if (\file_exists($this->thumbPath) && $force === false) {
-            return;
-        }
-
-        // use gmagick preferentially
-        if (\extension_loaded('gmagick')) {
-            $this->useGmagick();
-
-        // if we don't have gmagick, try with gd
-        } elseif (extension_loaded('gd')) {
-            $this->useGd();
-        }
     }
 }

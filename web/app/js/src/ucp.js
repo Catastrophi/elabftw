@@ -25,7 +25,7 @@
           $.post(this.controller, {
             destroy: true,
             id: id,
-            type: 'experiments_tpl'
+            type: 'experiments_templates'
           }).done(function(json) {
             notif(json);
             if (json.res) {
@@ -73,30 +73,34 @@
     tinymce.init({
       mode : 'specific_textareas',
       editor_selector : 'mceditable',
-      content_css : 'app/css/tinymce.css',
-      plugins : 'table textcolor searchreplace code lists advlist fullscreen insertdatetime paste charmap save image link mention',
-      toolbar1: 'undo redo | bold italic underline | fontsizeselect | alignleft aligncenter alignright alignjustify | superscript subscript | bullist numlist outdent indent | forecolor backcolor | charmap | link',
-      removed_menuitems : 'newdocument',
+      skin_url: 'app/css/tinymce',
+      plugins: 'table searchreplace code fullscreen insertdatetime paste charmap lists advlist save image imagetools link pagebreak mention codesample hr',
+      pagebreak_separator: '<pagebreak>',
+      toolbar1: 'undo redo | styleselect bold italic underline | alignleft aligncenter alignright alignjustify | superscript subscript | bullist numlist outdent indent | forecolor backcolor | charmap | codesample | link',
+      removed_menuitems: 'newdocument, image',
       mentions: {
-        // # is for items + all experiments of the team, $ is for items + user's experiments
-        delimiter: ['#', '$'],
+        // use # for autocompletion
+        delimiter: '#',
         // get the source from json with get request
-        source: function (query, process, delimiter) {
+        source: function (query, process) {
           let url = 'app/controllers/EntityAjaxController.php?mention=1&term=' + query;
-          if (delimiter === '#') {
-            $.getJSON(url, function(data) {
-              process(data);
-            });
-          }
-          if (delimiter === '$') {
-            url += '&userFilter=1';
-            $.getJSON(url, function(data) {
-              process(data);
-            });
-          }
+          $.getJSON(url, function(data) {
+            process(data);
+          });
         }
       },
       language : $('#language').data('lang')
+    });
+
+    // DESTROY API KEY
+    $(document).on('click', '.keyDestroy', function() {
+      $.post('app/controllers/AjaxController.php', {
+        destroyApiKey: true,
+        id: $(this).data('id')
+      }).done(function(json) {
+        notif(json);
+        $('#apiTable').load('ucp.php #apiTable');
+      });
     });
   });
 }());

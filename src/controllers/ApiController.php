@@ -10,15 +10,15 @@ declare(strict_types=1);
 
 namespace Elabftw\Controllers;
 
-use Elabftw\Elabftw\Tools;
 use Elabftw\Exceptions\ImproperActionException;
 use Elabftw\Interfaces\ControllerInterface;
 use Elabftw\Models\AbstractEntity;
 use Elabftw\Models\ApiKeys;
-use Elabftw\Models\Experiments;
 use Elabftw\Models\Database;
+use Elabftw\Models\Experiments;
 use Elabftw\Models\Uploads;
 use Elabftw\Models\Users;
+use Elabftw\Services\Check;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -35,8 +35,14 @@ class ApiController implements ControllerInterface
     /** @var AbstractEntity $Entity instance of Entity */
     private $Entity;
 
+    /** @var Users $Users the authenticated user */
+    private $Users;
+
     /** @var array $allowedMethods allowed HTTP methods */
     private $allowedMethods = array('GET', 'POST');
+
+    /** @var bool $canWrite can we do POST methods? */
+    private $canWrite = false;
 
     /** @var int|null $id the id at the end of the url */
     private $id;
@@ -56,6 +62,67 @@ class ApiController implements ControllerInterface
     }
 
     /**
+     * Get Response from Request
+     *
+     * @return Response
+     */
+    public function getResponse(): Response
+    {
+        // Check the HTTP method is allowed
+        if (!\in_array($this->Request->server->get('REQUEST_METHOD'), $this->allowedMethods, true)) {
+            // send error 405 for Method Not Allowed, with Allow header as per spec:
+            // https://tools.ietf.org/html/rfc7231#section-7.4.1
+            return new Response('Invalid HTTP request method!', 405, array('Allow' => \implode(', ', $this->allowedMethods)));
+        }
+
+        // Check if the Authorization Token was sent along
+        if (!$this->Request->server->has('HTTP_AUTHORIZATION')) {
+            // send error 401 if it's lacking an Authorization header, with WWW-Authenticate header as per spec:
+            // https://tools.ietf.org/html/rfc7235#section-3.1
+            return new Response('No access token provided!', 401, array('WWW-Authenticate' => 'Bearer'));
+        }
+
+        // GET UPLOAD
+        if ($this->endpoint === 'uploads') {
+            return $this->getUpload();
+        }
+
+        // GET ENTITY
+        if ($this->Request->server->get('REQUEST_METHOD') === 'GET') {
+            return $this->getEntity($this->id);
+        }
+
+        // POST request
+
+        // POST means write access for the access token
+        if (!$this->canWrite) {
+            return new Response('Cannot use readonly key with POST method!', 403);
+        }
+        // FILE UPLOAD
+        if ($this->Request->files->count() > 0) {
+            return $this->uploadFile();
+        }
+
+        // TITLE DATE BODY UPDATE
+        if ($this->Request->request->has('title')) {
+            return $this->updateEntity();
+        }
+
+        // ADD TAG
+        if ($this->Request->request->has('tag')) {
+            return $this->createTag();
+        }
+
+        // ADD LINK
+        if ($this->Request->request->has('link')) {
+            return $this->createLink();
+        }
+
+        // CREATE AN EXPERIMENT
+        return $this->createExperiment();
+    }
+
+    /**
      * Set the id and endpoints fields
      *
      * @return void
@@ -66,18 +133,31 @@ class ApiController implements ControllerInterface
 
         // assign the id if there is one
         $id = null;
-        if (Tools::checkId((int) end($args)) !== false) {
+        if (Check::id((int) end($args)) !== false) {
             $id = (int) end($args);
         }
         $this->id = $id;
 
         // assign the endpoint (experiments, items, uploads)
-        $endpoint = array_shift($args);
-        if ($endpoint === null) {
-            throw new ImproperActionException('Could not find endpoint!');
-        }
+        $this->endpoint = array_shift($args) ?? '';
 
-        $this->endpoint = $endpoint;
+        // verify the key and load user info
+        $Users = new Users();
+        $ApiKeys = new ApiKeys($Users);
+        $keyArr = $ApiKeys->readFromApiKey($this->Request->server->get('HTTP_AUTHORIZATION'));
+        $Users->populate((int) $keyArr['userid']);
+        $this->Users = $Users;
+        $this->canWrite = (bool) $keyArr['canWrite'];
+
+        // load Entity
+        // if endpoint is uploads we don't actually care about the entity type
+        if ($this->endpoint === 'experiments' || $this->endpoint === 'uploads') {
+            $this->Entity = new Experiments($Users, $this->id);
+        } elseif ($this->endpoint === 'items') {
+            $this->Entity = new Database($Users, $this->id);
+        } else {
+            throw new ImproperActionException('Bad endpoint!');
+        }
     }
 
     /**
@@ -159,6 +239,10 @@ class ApiController implements ControllerInterface
         $this->Entity->canOrExplode('read');
         // add the uploaded files
         $this->Entity->entityData['uploads'] = $this->Entity->Uploads->readAll();
+        // add the linked items
+        $this->Entity->entityData['links'] = $this->Entity->Links->readAll();
+        // add the steps
+        $this->Entity->entityData['steps'] = $this->Entity->Steps->readAll();
 
         return new JsonResponse($this->Entity->entityData);
     }
@@ -178,20 +262,19 @@ class ApiController implements ControllerInterface
     /**
      * Get the file corresponding to the ID
      *
-     * @param int $userid
      * @return Response
      */
-    private function getUpload(int $userid): Response
+    private function getUpload(): Response
     {
         if ($this->id === null) {
             return new Response('You need to specify an ID!', 400);
         }
-        $Uploads = new Uploads();
+        $Uploads = new Uploads(new Experiments($this->Users));
         $uploadData = $Uploads->readFromId($this->id);
         // check user owns the file
         // we could also check if user has read access to the item
         // but for now let's just restrict downloading file via API to owned files
-        if ((int) $uploadData['userid'] !== $userid) {
+        if ((int) $uploadData['userid'] !== $this->Users->userData['userid']) {
             return new Response('You do not have permission to access this resource.', 403);
         }
         $filePath = \dirname(__DIR__, 2) . '/uploads/' . $uploadData['long_name'];
@@ -334,83 +417,5 @@ class ApiController implements ControllerInterface
         $this->Entity->Uploads->create($this->Request);
 
         return new JsonResponse(array('result' => 'success'));
-    }
-
-    /**
-     * Get Response from Request
-     *
-     * @return Response
-     */
-    public function getResponse(): Response
-    {
-        // Check the HTTP method is allowed
-        if (!\in_array($this->Request->server->get('REQUEST_METHOD'), $this->allowedMethods, true)) {
-            // send error 405 for Method Not Allowed, with Allow header as per spec:
-            // https://tools.ietf.org/html/rfc7231#section-7.4.1
-            return new Response('Invalid HTTP request method!', 405, array('Allow' => \implode(', ', $this->allowedMethods)));
-        }
-
-        // Check if the Authorization Token was sent along
-        if (!$this->Request->server->has('HTTP_AUTHORIZATION')) {
-            // send error 401 if it's lacking an Authorization header, with WWW-Authenticate header as per spec:
-            // https://tools.ietf.org/html/rfc7235#section-3.1
-            return new Response('No access token provided!', 401, array('WWW-Authenticate' => 'Bearer'));
-        }
-
-        // verify the key and load user info
-        $Users = new Users();
-        $ApiKeys = new ApiKeys($Users);
-        $keyArr = $ApiKeys->readFromApiKey($this->Request->server->get('HTTP_AUTHORIZATION'));
-        $Users->setId((int) $keyArr['userid']);
-        $canWrite = (bool) $keyArr['canWrite'];
-
-        // GET UPLOAD
-        if ($this->endpoint === 'uploads') {
-            return $this->getUpload((int) $Users->userData['userid']);
-
-        // load Entity
-        }
-
-        if ($this->endpoint === 'experiments') {
-            $this->Entity = new Experiments($Users, $this->id);
-        } elseif ($this->endpoint === 'items') {
-            $this->Entity = new Database($Users, $this->id);
-        } else {
-            throw new ImproperActionException('Bad endpoint!');
-        }
-
-        // GET ENTITY
-        if ($this->Request->server->get('REQUEST_METHOD') === 'GET') {
-            return $this->getEntity($this->id);
-        }
-
-        // POST request
-
-        // POST means write access for the access token
-        if (!$canWrite) {
-            return new Response('Cannot use readonly key with POST method!', 403);
-        }
-        // FILE UPLOAD
-        if ($this->Request->files->count() > 0) {
-            return $this->uploadFile();
-        }
-
-        // TITLE DATE BODY UPDATE
-        if ($this->Request->request->has('title')) {
-            return $this->updateEntity();
-        }
-
-        // ADD TAG
-        if ($this->Request->request->has('tag')) {
-            return $this->createTag();
-        }
-
-        // ADD LINK
-        if ($this->Request->request->has('link')) {
-            return $this->createLink();
-        }
-
-        // CREATE AN EXPERIMENT
-        return $this->createExperiment();
     }
 }

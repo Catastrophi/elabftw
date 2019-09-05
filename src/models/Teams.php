@@ -16,6 +16,7 @@ use Elabftw\Elabftw\Db;
 use Elabftw\Exceptions\DatabaseErrorException;
 use Elabftw\Exceptions\ImproperActionException;
 use Elabftw\Interfaces\CrudInterface;
+use Elabftw\Services\Filter;
 use PDO;
 
 /**
@@ -23,11 +24,11 @@ use PDO;
  */
 class Teams implements CrudInterface
 {
-    /** @var Db $Db SQL Database */
-    protected $Db;
-
     /** @var Users $Users instance of Users */
     public $Users;
+
+    /** @var Db $Db SQL Database */
+    protected $Db;
 
     /**
      * Constructor
@@ -61,26 +62,31 @@ class Teams implements CrudInterface
      * Check if the team exists already and create one if not
      *
      * @param string $name Name of the team (case sensitive)
+     * @param bool $allowCreate depends on the value of saml_team_create in Config
      * @return int The team ID
      */
-    public function initializeIfNeeded(string $name): int
+    public function initializeIfNeeded(string $name, bool $allowCreate): int
     {
         $sql = 'SELECT id, name, orgid FROM teams';
         $req = $this->Db->prepare($sql);
+        $req->bindParam(':name', $name);
         if ($req->execute() !== true) {
             throw new DatabaseErrorException('Error while executing SQL query.');
         }
         $teamsArr = $req->fetchAll();
-        if ($teamsArr === false) {
-            return $this->create($name);
-        }
 
-        foreach ($teamsArr as $team) {
-            if (($team['name'] === $name) || ($team['orgid'] === $name)) {
-                return (int) $team['id'];
+        if (is_array($teamsArr)) {
+            foreach ($teamsArr as $team) {
+                if (($team['name'] === $name) || ($team['orgid'] === $name)) {
+                    return (int) $team['id'];
+                }
             }
         }
-        return $this->create($name);
+
+        if ($allowCreate) {
+            return $this->create($name);
+        }
+        throw new ImproperActionException('The administrator disabled team creation on SAML login. Contact your administrator for creating the team.');
     }
 
     /**
@@ -89,9 +95,9 @@ class Teams implements CrudInterface
      * @param string $name The new name of the team
      * @return int the new team id
      */
-    public function create(string $name)
+    public function create(string $name): int
     {
-        $name = filter_var($name, FILTER_SANITIZE_STRING);
+        $name = Filter::sanitize($name);
 
         // add to the teams table
         $sql = 'INSERT INTO teams (name, link_name, link_href) VALUES (:name, :link_name, :link_href)';
@@ -113,7 +119,7 @@ class Teams implements CrudInterface
         $ItemsTypes = new ItemsTypes($this->Users);
         $ItemsTypes->create(
             'Edit me',
-            '32a100',
+            '#32a100',
             0,
             '<p>Go to the admin panel to edit/add more items types!</p>',
             $newId
@@ -133,7 +139,7 @@ class Teams implements CrudInterface
      */
     public function read(): array
     {
-        $sql = "SELECT * FROM `teams` WHERE id = :id";
+        $sql = 'SELECT * FROM `teams` WHERE id = :id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':id', $this->Users->userData['team'], PDO::PARAM_INT);
         if ($req->execute() !== true) {
@@ -155,7 +161,7 @@ class Teams implements CrudInterface
      */
     public function readAll(): array
     {
-        $sql = "SELECT * FROM teams ORDER BY name ASC";
+        $sql = 'SELECT * FROM teams ORDER BY name ASC';
         $req = $this->Db->prepare($sql);
         if ($req->execute() !== true) {
             throw new DatabaseErrorException('Error while executing SQL query.');
@@ -206,15 +212,15 @@ class Teams implements CrudInterface
 
         $linkName = 'Documentation';
         if (isset($post['link_name'])) {
-            $linkName = filter_var($post['link_name'], FILTER_SANITIZE_STRING);
+            $linkName = Filter::sanitize($post['link_name']);
         }
 
         $linkHref = 'https://doc.elabftw.net';
         if (isset($post['link_href'])) {
-            $linkHref = filter_var($post['link_href'], FILTER_SANITIZE_STRING);
+            $linkHref = Filter::sanitize($post['link_href']);
         }
 
-        $sql = "UPDATE teams SET
+        $sql = 'UPDATE teams SET
             deletable_xp = :deletable_xp,
             public_db = :public_db,
             link_name = :link_name,
@@ -223,7 +229,7 @@ class Teams implements CrudInterface
             stamppass = :stamppass,
             stampprovider = :stampprovider,
             stampcert = :stampcert
-            WHERE id = :id";
+            WHERE id = :id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':deletable_xp', $deletableXp, PDO::PARAM_INT);
         $req->bindParam(':public_db', $publicDb, PDO::PARAM_INT);
@@ -248,15 +254,15 @@ class Teams implements CrudInterface
      * @param string $orgid The id of the team in the organisation (from IDP for instance)
      * @return void
      */
-    public function updateName(int $id, string $name, string $orgid = ""): void
+    public function updateName(int $id, string $name, string $orgid = ''): void
     {
-        $name = filter_var($name, FILTER_SANITIZE_STRING);
-        $orgid = filter_var($orgid, FILTER_SANITIZE_STRING);
+        $name = Filter::sanitize($name);
+        $orgid = Filter::sanitize($orgid);
 
-        $sql = "UPDATE teams
+        $sql = 'UPDATE teams
             SET name = :name,
                 orgid = :orgid
-            WHERE id = :id";
+            WHERE id = :id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':name', $name);
         $req->bindParam(':orgid', $orgid);
@@ -283,22 +289,12 @@ class Teams implements CrudInterface
         }
 
         // foreign keys will take care of deleting associated data (like status or experiments_templates)
-        $sql = "DELETE FROM teams WHERE id = :id";
+        $sql = 'DELETE FROM teams WHERE id = :id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':id', $id, PDO::PARAM_INT);
         if ($req->execute() !== true) {
             throw new DatabaseErrorException('Error while executing SQL query.');
         }
-    }
-
-    /**
-     * Not implemented
-     *
-     * @return void
-     */
-    public function destroyAll(): void
-    {
-        return;
     }
 
     /**
@@ -308,7 +304,7 @@ class Teams implements CrudInterface
      */
     public function destroyStamppass(): bool
     {
-        $sql = "UPDATE teams SET stamppass = NULL WHERE id = :id";
+        $sql = 'UPDATE teams SET stamppass = NULL WHERE id = :id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':id', $this->Users->userData['team'], PDO::PARAM_INT);
 
@@ -322,12 +318,12 @@ class Teams implements CrudInterface
      */
     public function getAllStats(): array
     {
-        $sql = "SELECT
+        $sql = 'SELECT
         (SELECT COUNT(users.userid) FROM users) AS totusers,
         (SELECT COUNT(items.id) FROM items) AS totdb,
         (SELECT COUNT(teams.id) FROM teams) AS totteams,
         (SELECT COUNT(experiments.id) FROM experiments) AS totxp,
-        (SELECT COUNT(experiments.id) FROM experiments WHERE experiments.timestamped = 1) AS totxpts";
+        (SELECT COUNT(experiments.id) FROM experiments WHERE experiments.timestamped = 1) AS totxpts';
         $req = $this->Db->prepare($sql);
         $req->execute();
 
@@ -342,12 +338,12 @@ class Teams implements CrudInterface
      */
     public function getStats(int $team): array
     {
-        $sql = "SELECT
+        $sql = 'SELECT
         (SELECT COUNT(users.userid) FROM users WHERE users.team = :team) AS totusers,
         (SELECT COUNT(items.id) FROM items WHERE items.team = :team) AS totdb,
         (SELECT COUNT(experiments.id) FROM experiments WHERE experiments.team = :team) AS totxp,
         (SELECT COUNT(experiments.id) FROM experiments
-            WHERE experiments.team = :team AND experiments.timestamped = 1) AS totxpts";
+            WHERE experiments.team = :team AND experiments.timestamped = 1) AS totxpts';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':team', $team, PDO::PARAM_INT);
         $req->execute();

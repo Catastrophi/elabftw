@@ -12,11 +12,13 @@ namespace Elabftw\Elabftw;
 
 use Elabftw\Exceptions\IllegalActionException;
 use Elabftw\Exceptions\ImproperActionException;
+use Elabftw\Exceptions\InvalidCsrfTokenException;
 use Elabftw\Models\Database;
 use Elabftw\Models\Experiments;
-use Elabftw\Models\Templates;
-use Elabftw\Models\Status;
 use Elabftw\Models\ItemsTypes;
+use Elabftw\Models\Status;
+use Elabftw\Models\Templates;
+use Elabftw\Services\Check;
 use Exception;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
@@ -29,7 +31,7 @@ require_once \dirname(__DIR__) . '/init.inc.php';
 $Response = new JsonResponse();
 $Response->setData(array(
     'res' => true,
-    'msg' => _('Saved')
+    'msg' => _('Saved'),
 ));
 
 try {
@@ -48,7 +50,7 @@ try {
     if ($Request->request->get('type') === 'experiments' ||
         $Request->query->get('type') === 'experiments') {
         $Entity = new Experiments($App->Users, $id);
-    } elseif ($Request->request->get('type') === 'experiments_tpl') {
+    } elseif ($Request->request->get('type') === 'experiments_templates') {
         $Entity = new Templates($App->Users, $id);
     } else {
         $Entity = new Database($App->Users, $id);
@@ -61,12 +63,8 @@ try {
 
     // GET MENTION LIST
     if ($Request->query->has('term') && $Request->query->has('mention')) {
-        $userFilter = false;
         $term = $Request->query->filter('term', null, FILTER_SANITIZE_STRING);
-        if ($Request->query->has('userFilter')) {
-            $userFilter = true;
-        }
-        $Response->setData($Entity->getMentionList($term, $userFilter));
+        $Response->setData($Entity->getMentionList($term));
     }
 
     // GET BODY
@@ -74,14 +72,50 @@ try {
         $Entity->canOrExplode('read');
         $Response->setData(array(
             'res' => true,
-            'msg' => Tools::md2html($Entity->entityData['body'])
+            'msg' => Tools::md2html($Entity->entityData['body']),
         ));
+    }
+
+    // GET LINK LIST
+    if ($Request->query->has('term') && !$Request->query->has('mention')) {
+        // we don't care about the entity type as getLinkList() is available in AbstractEntity
+        $Entity = new Experiments($App->Users);
+        $Response->setData($Entity->getLinkList($Request->query->get('term')));
     }
 
     /**
      * POST REQUESTS
      *
      */
+
+    if ($Request->request->has('saveAsImage')) {
+        $Entity->Uploads->createFromString('png', $Request->request->get('realName'), $Request->request->get('content'));
+    }
+
+    // CREATE STEP
+    if ($Request->request->has('createStep')) {
+        $Entity->Steps->create($Request->request->get('body'));
+    }
+
+    // FINISH STEP
+    if ($Request->request->has('finishStep')) {
+        $Entity->Steps->finish((int) $Request->request->get('stepId'));
+    }
+
+    // DESTROY STEP
+    if ($Request->request->has('destroyStep')) {
+        $Entity->Steps->destroy((int) $Request->request->get('stepId'));
+    }
+
+    // CREATE LINK
+    if ($Request->request->has('createLink')) {
+        $Entity->Links->create((int) $Request->request->get('linkId'));
+    }
+
+    // DESTROY LINK
+    if ($Request->request->has('destroyLink')) {
+        $Entity->Links->destroy((int) $Request->request->get('linkId'));
+    }
 
     // UPDATE VISIBILITY
     if ($Request->request->has('updateVisibility')) {
@@ -109,7 +143,20 @@ try {
         $id = $Entity->duplicate();
         $Response->setData(array(
             'res' => true,
-            'msg' => $id
+            'msg' => $id,
+        ));
+    }
+
+    // SHARE
+    if ($Request->request->has('getShareLink')) {
+        if (!$Entity instanceof Experiments) {
+            throw new IllegalActionException('Can only share experiments.');
+        }
+        $Entity->canOrExplode('read');
+        $link = Tools::getUrl($Request) . '/experiments.php?mode=view&id=' . $Entity->id . '&elabid=' . $Entity->entityData['elabid'];
+        $Response->setData(array(
+            'res' => true,
+            'msg' => $link,
         ));
     }
 
@@ -119,7 +166,7 @@ try {
         $comment = $Request->request->filter('comment', null, FILTER_SANITIZE_STRING);
         $id_arr = \explode('_', $Request->request->get('comment_id'));
         $comment_id = (int) $id_arr[1];
-        if (Tools::checkId($comment_id) === false) {
+        if (Check::id($comment_id) === false) {
             throw new IllegalActionException('The id parameter is invalid');
         }
 
@@ -133,14 +180,19 @@ try {
 
     // ADD MOL FILE OR PNG
     if ($Request->request->has('addFromString')) {
-        $Entity->Uploads->createFromString($Request->request->get('fileType'), $Request->request->get('string'));
+        $Entity->Uploads->createFromString(
+            $Request->request->get('fileType'),
+            $Request->request->get('realName'),
+            $Request->request->get('string')
+        );
     }
 
     // DESTROY ENTITY
     if ($Request->request->has('destroy')) {
 
         // check for deletable xp
-        if ($Entity instanceof Experiments && !$App->teamConfigArr['deletable_xp'] && !$Session->get('is_admin')) {
+        if ($Entity instanceof Experiments && (!$App->teamConfigArr['deletable_xp'] && !$Session->get('is_admin'))
+            || $App->Config->configArr['deletable_xp'] === '0') {
             throw new ImproperActionException('You cannot delete experiments!');
         }
         $Entity->destroy();
@@ -148,7 +200,6 @@ try {
 
     // UPDATE CATEGORY (item type or status)
     if ($Request->request->has('updateCategory')) {
-
         $Entity->updateCategory((int) $Request->request->get('categoryId'));
         // get the color of the status/item type for updating the css
         if ($Entity instanceof Experiments) {
@@ -159,7 +210,7 @@ try {
         $Response->setData(array(
             'res' => true,
             'msg' => _('Saved'),
-            'color' => $Category->readColor((int) $Request->request->get('categoryId'))
+            'color' => $Category->readColor((int) $Request->request->get('categoryId')),
         ));
     }
 
@@ -169,38 +220,33 @@ try {
         $upload = $Entity->Uploads->readFromId((int) $Request->request->get('upload_id'));
         $Entity->Uploads->destroy((int) $Request->request->get('upload_id'));
         // check that the filename is not in the body. see #432
-        $msg = "";
+        $msg = '';
         if (strpos($Entity->entityData['body'], $upload['long_name'])) {
-            $msg = ". ";
-            $msg .= _("Please make sure to remove any reference to this file in the body!");
+            $msg = '. ';
+            $msg .= _('Please make sure to remove any reference to this file in the body!');
         }
         $Response->setData(array(
             'res' => true,
-            'msg' => _('File deleted successfully') . $msg
+            'msg' => _('File deleted successfully') . $msg,
         ));
     }
-
-
-} catch (ImproperActionException $e) {
+} catch (ImproperActionException | InvalidCsrfTokenException $e) {
     $Response->setData(array(
         'res' => false,
-        'msg' => $e->getMessage()
+        'msg' => $e->getMessage(),
     ));
-
 } catch (IllegalActionException $e) {
     $App->Log->notice('', array(array('userid' => $App->Session->get('userid')), array('IllegalAction', $e)));
     $Response->setData(array(
         'res' => false,
-        'msg' => Tools::error(true)
+        'msg' => Tools::error(true),
     ));
-
 } catch (Exception $e) {
     $App->Log->error('', array(array('userid' => $App->Session->get('userid') ?? 'anon'), array('Exception' => $e)));
     $Response->setData(array(
         'res' => false,
-        'msg' => Tools::error()
+        'msg' => Tools::error(),
     ));
-
 } finally {
     $Response->send();
 }

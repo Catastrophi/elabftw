@@ -25,7 +25,7 @@
     <li class='tabhandle' id='tab5'>{{ 'Types of items'|trans }}</li>
     <li class='tabhandle' id='tab6'>{{ 'Experiments template'|trans }}</li>
     <li class='tabhandle' id='tab7'>{{ 'Import'|trans }}</li>
-    <li class='tabhandle' id='tab8'>{{ 'Tag manager'|trans }}</li><span class='beta'>new</span>
+    <li class='tabhandle' id='tab8'>{{ 'Tag manager'|trans }}</li>
   </ul>
 </menu>
 
@@ -34,70 +34,53 @@
   <div class='box'>
     <h3>{{ 'Configure your Team'|trans }}</h3>
     <hr>
-    <form method='post' action='app/controllers/AdminController.php' autocomplete='off'>
+    <form class='form-group' method='post' action='app/controllers/AdminController.php' autocomplete='off'>
       <input type='hidden' value='true' name='teamsUpdateFull' />
       {{ App.Csrf.getHiddenInput|raw }}
+      <label for='deletable_xp'>{{ 'Users can delete experiments:'|trans }}</label>
+      <select class='form-control col-md-4' name='deletable_xp' id='deletable_xp'>
+        <option value='1'{{ App.teamConfigArr.deletable_xp ? " selected='selected'" }}>{{ 'Yes'|trans }}</option>
+        <option value='0'{{ not App.teamConfigArr.deletable_xp ? " selected='selected'" }}>{{ 'No'|trans }}</option>
+      </select>
+      <span class='smallgray'>{{ 'An admin account will always be able to delete experiments.'|trans }}</span>
 
-      <p>
-        <label for='deletable_xp'>{{ 'Users can delete experiments:'|trans }}</label>
-        <select class='clean-form' name='deletable_xp' id='deletable_xp'>
-          <option value='1'{{ App.teamConfigArr.deletable_xp ? " selected='selected'" }}>{{ 'Yes'|trans }}</option>
-          <option value='0'{{ not App.teamConfigArr.deletable_xp ? " selected='selected'" }}>{{ 'No'|trans }}</option>
-        </select>
-        <span class='smallgray'>{{ 'An admin account will always be able to delete experiments.'|trans }}</span>
-      </p>
+      <label for='public_db'>{{ 'Anonymous visitors can see database items:'|trans }}</label>
+      <select class='form-control col-md-4' name='public_db' id='public_db'>
+        <option value='1'{{ App.teamConfigArr.public_db ? " selected='selected'" }}>{{ 'Yes'|trans }}</option>
+        <option value='0'{{ not App.teamConfigArr.public_db ? " selected='selected'" }}>{{ 'No'|trans }}</option>
+      </select>
 
-      <p>
-        <label for='public_db'>{{ 'Anonymous visitors can see database items:'|trans }}</label>
-        <select class='clean-form' name='public_db' id='public_db'>
-          <option value='1'{{ App.teamConfigArr.public_db ? " selected='selected'" }}>{{ 'Yes'|trans }}</option>
-          <option value='0'{{ not App.teamConfigArr.public_db ? " selected='selected'" }}>{{ 'No'|trans }}</option>
-        </select>
-      </p>
+      <label for='link_name'>{{ 'Name of the link in the top menu:'|trans }}</label>
+      <input class='form-control col-md-4' type='text' value='{{ App.teamConfigArr.link_name }}' name='link_name' id='link_name' />
 
-      <p>
-        <label class="block" for='link_name'>{{ 'Name of the link in the top menu:'|trans }}</label>
-        <input class="clean-form col-3-form" type='text' value='{{ App.teamConfigArr.link_name }}' name='link_name' id='link_name' />
-      </p>
+      <label for='link_href'>{{ 'Address where this link should point:'|trans }}</label>
+      <input class='mb-4 form-control col-md-4' type='text' value='{{ App.teamConfigArr.link_href }}' name='link_href' id='link_href' />
 
-      <p>
-        <label class="block" for='link_href'>{{ 'Address where this link should point:'|trans }}</label>
-        <input class="clean-form col-3-form" type='text' value='{{ App.teamConfigArr.link_href }}' name='link_href' id='link_href' />
-      </p>
+      <span class='m-0 button button-neutral togglableNext'>{{ 'Override general timestamping config'|trans }}</span>
+      <div class='togglableHidden mt-2'>
+        <label for='stampprovider'>{{ 'URL for external timestamping service:'|trans }}</label>
+        <input class='form-control col-md-4' type='url' placeholder='http://zeitstempel.dfn.de/' value='{{ App.teamConfigArr.stampprovider }}' name='stampprovider' id='stampprovider' />
+        <span class='smallgray'>{{ 'This should be the URL used for %sRFC 3161%s-compliant timestamping requests.'|trans|format("<a href='https://tools.ietf.org/html/rfc3161'>", "</a>")|raw }}</span>
 
-      <br>
-      <span class='button button-neutral togglableNext'>{{ 'Override general timestamping config'|trans }}</span>
-      <div class='togglableHidden'>
-        <p>
-          <br>
-          <label class='block' for='stampprovider'>{{ 'URL for external timestamping service:'|trans }}</label>
-          <input class='clean-form col-3-form' type='url' placeholder='http://zeitstempel.dfn.de/' value='{{ App.teamConfigArr.stampprovider }}' name='stampprovider' id='stampprovider' />
-          <span class='smallgray'>{{ 'This should be the URL used for %sRFC 3161%s-compliant timestamping requests.'|trans|format("<a href='https://tools.ietf.org/html/rfc3161'>", "</a>")|raw }}</span>
+        <!-- TODO provide an upload button -->
+        <label for='stampcert'>{{ 'Chain of certificates of the external timestamping service:'|trans }}</label>
+        <input class='form-control col-md-4' type='text' placeholder='app/dfn-cert/pki.dfn.pem' value='{{ App.teamConfigArr.stampcert }}' name='stampcert' id='stampcert' />
+        <span class='smallgray'>{{ "This should point to the chain of certificates used by your external timestamping provider to sign the timestamps.%sLocal path relative to eLabFTW installation directory. You should add it in the 'uploads' folder. The file needs to be in %sPEM-encoded (ASCII)%s format!"|trans|format("<br>", "<a href='https://en.wikipedia.org/wiki/Privacy-enhanced_Electronic_Mail'>", "</a>")|raw }}</span>
+        <label for='stamplogin'>{{ 'Login for external timestamping service:'|trans }}</label>
+        <input class='form-control col-md-4' autocomplete='off' type='text' value='{{ App.teamConfigArr.stamplogin }}' name='stamplogin' id='stamplogin' />
+        <span class='smallgray'>{{ 'This should be the login associated with your timestamping service provider'|trans }}</span>
+
+        <label for='stamppass'>{{ 'Password for external timestamping service:'|trans }}</label>
+        {% if App.teamConfigArr.stamppass|length > 1 %}
+        <p>{{ 'A password is already set.'|trans }}
+        {{ '%sClear it%s or change it below:'|trans|format("
+        <a href='app/controllers/AdminController.php?clearStamppass=1'>",
+        "</a>"
+        )|raw }}
         </p>
-
-        <p>
-          <!-- TODO provide an upload button -->
-          <label class='block' for='stampcert'>{{ 'Chain of certificates of the external timestamping service:'|trans }}</label>
-          <input class='clean-form col-3-form' type='text' placeholder='app/dfn-cert/pki.dfn.pem' value='{{ App.teamConfigArr.stampcert }}' name='stampcert' id='stampcert' />
-          <span class='smallgray'>{{ "This should point to the chain of certificates used by your external timestamping provider to sign the timestamps.%sLocal path relative to eLabFTW installation directory. You should add it in the 'uploads' folder. The file needs to be in %sPEM-encoded (ASCII)%s format!"|trans|format("<br>", "<a href='https://en.wikipedia.org/wiki/Privacy-enhanced_Electronic_Mail'>", "</a>")|raw }}</span>
-          <label class='block' for='stamplogin'>{{ 'Login for external timestamping service:'|trans }}</label>
-          <input class='clean-form col-3-form' autocomplete='off' type='text' value='{{ App.teamConfigArr.stamplogin }}' name='stamplogin' id='stamplogin' />
-          <span class='smallgray'>{{ 'This should be the login associated with your timestamping service provider'|trans }}</span>
-        </p>
-
-        <p>
-          <label class='block' for='stamppass'>{{ 'Password for external timestamping service:'|trans }}</label>
-          {% if App.teamConfigArr.stamppass|length > 1 %}
-          <p>{{ 'A password is already set.'|trans }}
-          {{ '%sClear it%s or change it below:'|trans|format("
-          <a href='app/controllers/AdminController.php?clearStamppass=1'>",
-          "</a>"
-          )|raw }}
-          </p>
-          {% endif %}
-          <input class='clean-form col-3-form' autocomplete='off' type='password' name='stamppass' id='stamppass' />
-          <span class='smallgray'>{{ 'Your timestamping service provider password'|trans }}</span>
-        </p>
+        {% endif %}
+        <input class='form-control col-md-4' autocomplete='off' type='password' name='stamppass' id='stamppass' />
+        <span class='smallgray'>{{ 'Your timestamping service provider password'|trans }}</span>
       </div>
 
       <div class='submitButtonDiv'>
@@ -109,13 +92,13 @@
 
 <!-- TAB 2 TEAM GROUPS -->
 <div class='divhandle' id='tab2div'>
-  <div class='box tooltip-box'>
+  <div class='box form-group'>
     <h3>{{ 'Manage Groups of Users'|trans }}</h3>
     <hr>
 
     <!-- CREATE A GROUP -->
-    <label class='block' for='teamGroupCreate'>{{ 'Create a group'|trans }}</label>
-    <input class='clean-form col-3-form' id='teamGroupCreate' type='text' />
+    <label for='teamGroupCreate'>{{ 'Create a group'|trans }}</label>
+    <input class='form-control col-md-4 custom-control-inline' id='teamGroupCreate' type='text' />
     <button type='submit' id='teamGroupCreateBtn' class='button'>{{ 'Create'|trans }}</button>
     <!-- END CREATE GROUP -->
 
@@ -124,39 +107,43 @@
         <hr>
         <section>
           <!-- ADD USER TO GROUP -->
-          <label class='block' for='teamGroupUserAdd'>{{ 'Add this user'|trans }}</label>
-          <select class='clean-form col-3-form' id='teamGroupUserAdd'>
+          <label for='teamGroupUserAdd'>{{ 'Add this user'|trans }}</label>
+          <select class='form-control col-md-4' id='teamGroupUserAdd'>
             {% for user in allTeamUsersArr %}
               <option value='{{ user.userid }}'>{{ user.fullname|raw }}</option>
             {% endfor %}
           </select>
 
-          <label class='block' for='teamGroupGroupAdd'>{{ 'to this group'|trans }}</label>
-          <select class="clean-form col-3-form" id='teamGroupGroupAdd'>
+          <label for='teamGroupGroupAdd'>{{ 'to this group'|trans }}</label>
+          <select class='form-control col-md-4' id='teamGroupGroupAdd'>
             {% for teamGroup in teamGroupsArr %}
               <option value='{{ teamGroup.id }}'>{{ teamGroup.name }}</option>
             {% endfor %}
             </select>
-          <button type='submit' id='teamGroupGroupAddBtn' class='button'>{{ 'Add'|trans }}</button>
+          <div class='submitButtonDiv'>
+            <button type='submit' id='teamGroupGroupAddBtn' class='button'>{{ 'Add'|trans }}</button>
+          </div>
         </section>
 
         <section>
           <hr>
           <!-- RM USER FROM GROUP -->
-          <label class='block' for='teamGroupUserRm'>{{ 'Remove this user'|trans }}</label>
-          <select class="clean-form col-3-form" id='teamGroupUserRm'>
+          <label for='teamGroupUserRm'>{{ 'Remove this user'|trans }}</label>
+          <select class='form-control col-md-4' id='teamGroupUserRm'>
             {% for user in allTeamUsersArr %}
               <option value='{{ user.userid }}'>{{ user.fullname|raw }}</option>
             {% endfor %}
           </select>
 
-          <label class='block' for='teamGroupGroupRm'>{{ 'from this group'|trans }}</label>
-          <select class='clean-form col-3-form' id='teamGroupGroupRm'>
+          <label for='teamGroupGroupRm'>{{ 'from this group'|trans }}</label>
+          <select class='form-control col-md-4' id='teamGroupGroupRm'>
             {% for teamGroup in teamGroupsArr %}
               <option value='{{ teamGroup.id }}'>{{ teamGroup.name }}</option>
             {% endfor %}
           </select>
-          <button type='submit' id='teamGroupGroupRmBtn' class='button button-delete'>{{ 'Remove'|trans }}</button>
+          <div class='submitButtonDiv'>
+            <button type='submit' id='teamGroupGroupRmBtn' class='button button-delete'>{{ 'Remove'|trans }}</button>
+          </div>
         </section>
       </div>
 
@@ -191,31 +178,42 @@
   <div class='box'>
     <h3>{{ 'Add a New Status'|trans }}</h3>
     <hr>
-    <ul class='list-group'>
-      <li>
-        <ul class='list-inline'>
-          <li class='list-inline-item'>{{ 'Name'|trans }} <input type='text' id='statusName' /></li>
-          <li class='list-inline-item'>{{ 'Color'|trans }} <input class='colorpicker' type='text' id='statusColor' value='000000' /></li>
-          <li class='list-inline-item'><input type='checkbox' id='statusTimestamp' /> {{ 'Allow timestamp'|trans }}</li>
-          <li class='list-inline-item'><button class='button' id='statusCreate'>{{ 'Save'|trans }}</button></li>
-        </ul>
-      </li>
-    </ul>
+    <div class='form-row align-items-center'>
+      <div class='col-auto'>
+        <label for='statusName'>{{ 'Name'|trans }}</label>
+        <input class='form-control' type='text' id='statusName' />
+      </div>
+
+      <div class='col-1'>
+        <label for='statusColor'>{{ 'Color'|trans }}</label>
+        <input class='form-control randomColor' type='color' id='statusColor' />
+      </div>
+
+      <div class='col-auto'>
+        <div class='form-check mt-4'>
+          <input class='form-check-input' type='checkbox' id='statusTimestamp' />
+          <label class='form-check-label' for='statusTimestamp'>{{ 'Allow timestamp'|trans }}</label>
+        </div>
+      </div>
+
+      <div class='col-auto mt-4'>
+        <button class='button' id='statusCreate'>{{ 'Save'|trans }}</button>
+      </div>
+    </div>
   </div>
 
   <div class='box'>
     <h3>{{ 'Edit an Existing Status'|trans }}</h3>
     <hr>
-    <ul class='draggable list-group'>
+    <ul class='list-group'>
       {% for status in statusArr %}
         <li id='status_{{ status.category_id }}' class='list-group-item'>
           <ul class='list-inline'>
-            <li class='list-inline-item'>{{ 'Name'|trans }} <input required type='text' id='statusName_{{ status.category_id }}' value='{{ status.category }}' /></li>
-            <li class='list-inline-item' style='color:#{{ status.color }}'>{{ 'Color'|trans }} <input class='colorpicker' type='text' maxlength='6' id='statusColor_{{ status.category_id }}' value='{{ status.color }}' />
+            <li class='list-inline-item'><label for='statusName_{{ status.category_id }}'>{{ 'Name'|trans }}</label> <input class='form-control' required type='text' id='statusName_{{ status.category_id }}' value='{{ status.category }}' /></li>
+            <li class='list-inline-item col-1 align-top'><label for='statusColor_{{ status.category_id }}'>{{ 'Color'|trans }}</label> <input class='form-control' type='color' id='statusColor_{{ status.category_id }}' value='#{{ status.color }}' />
             </li>
-            <li class='list-inline-item'><input type='checkbox' id='statusTimestamp_{{ status.category_id }}' {{ status.is_timestampable ? " checked" }} /> {{ 'Allow timestamp'|trans }}</li>
-            <li class='list-inline-item'><input type='radio' name='defaultRadio' id='statusDefault_{{ status.category_id }}' {{ status.is_default ? " checked" }} />
-            {{ 'Default status'|trans }}</li>
+            <li class='list-inline-item'><input type='checkbox' id='statusTimestamp_{{ status.category_id }}' {{ status.is_timestampable ? " checked" }} /> <label for='statusTimestamp_{{ status.category_id }}'>{{ 'Allow timestamp'|trans }}</label></li>
+            <li class='list-inline-item'><input type='radio' name='defaultRadio' id='statusDefault_{{ status.category_id }}' {{ status.is_default ? " checked" }} /> <label for='statusDefault_{{ status.category_id }}'>{{ 'Default status'|trans }}</label></li>
             <li class='list-inline-item'><button data-id='{{ status.category_id }}' class='button statusSave'>{{ 'Save'|trans }}</button></li>
 
             <li class='list-inline-item'><button data-id='{{ status.category_id }}' class='button button-delete statusDestroy' >{{ 'Delete'|trans }}</button></li>
@@ -244,29 +242,47 @@
   <div class='box'>
     <h3>{{ 'Add a new type of item'|trans }}</h3>
     <hr>
-    <ul class='list-inline'>
-      <li class='list-inline-item'>{{ 'Name'|trans }} <input type='text' id='itemsTypesName' /></li>
-      <li class='list-inline-item'>{{ 'Color'|trans }} <input class='colorpicker' type='text' id='itemsTypesColor' value='29AEB9' /></li>
-      <li class='list-inline-item'><input type='checkbox' id='itemsTypesBookable'> <label for='itemsTypesBookable'>{{ 'Bookable'|trans }} {{ 'in the %sscheduler%s'|trans|format("<a href='team.php'>", "</a>")|raw }}</label></li>
-    </ul>
+    <div class='form-row align-items-center mb-2'>
+      <div class='col-auto'>
+        <label for='itemsTypesName'>{{ 'Name'|trans }}</label>
+        <input class='form-control' type='text' id='itemsTypesName' />
+      </div>
+
+      <div class='col-1'>
+        <label for='itemsTypesColor'>{{ 'Color'|trans }}</label>
+        <input class='form-control randomColor' type='color' id='itemsTypesColor' />
+      </div>
+
+      <div class='col-auto'>
+        <div class='form-check mt-4'>
+          <input class='form-check-input' type='checkbox' id='itemsTypesBookable' />
+          <label class='form-check-label' for='itemsTypesBookable'>{{ 'Bookable'|trans }} {{ 'in the %sscheduler%s'|trans|format("<a href='team.php'>", "</a>")|raw }}</label>
+        </div>
+      </div>
+    </div>
+
     <textarea class='mceditable' id='itemsTypesTemplate' /></textarea>
     <div class='submitButtonDiv'>
       <button id='itemsTypesCreate' class='button'>{{ 'Save'|trans }}</button>
     </div>
   </div>
 
+
   <div class='box'>
     <h3>{{ 'Database Items Types'|trans }}</h3>
     <hr>
-    <ul class='list-group'>
+    <ul class='list-group form-group'>
       {% for itemType in itemsTypesArr %}
         <li id='itemstypes_{{ itemType.category_id }}' class='list-group-item'>
           <ul class='list-inline'>
             <li class='list-inline-item'>
-              {{ 'Name'|trans }} <input type='text' id='itemsTypesName_{{ itemType.category_id }}' value='{{ itemType.category }}' />
+              <label for='itemsTypesName_{{ itemType.category_id }}'>{{ 'Name'|trans }}</label>
+              <input type='text' class='form-control' id='itemsTypesName_{{ itemType.category_id }}' value='{{ itemType.category }}' />
             </li>
-            <li class='list-inline-item' style='color:#{{ itemType.color }}'>
-              {{ 'Color'|trans }} <input class='colorpicker' type='text' style='display:inline' id='itemsTypesColor_{{ itemType.category_id }}' value='{{ itemType.color }}' />
+
+            <li class='list-inline-item col-1 align-top'>
+              <label for='itemsTypesColor_{{ itemType.category_id }}'>{{ 'Color'|trans }}</label>
+              <input class='form-control' type='color' id='itemsTypesColor_{{ itemType.category_id }}' value='#{{ itemType.color }}' />
             </li>
             <li class='list-inline-item'>
               <input id='itemsTypesBookable_{{ itemType.category_id }}' type='checkbox' {{ itemType.bookable ? " checked" }} />
@@ -327,17 +343,17 @@
       {{ "Import a .csv (Excel spreadsheet) file into the database. First you need to open your .xls/.xlsx file in Excel or Libreoffice and save it as .csv. IMPORTANT: one of the column MUST be named 'title'. You should make a tiny import of 3 lines to see if everything works before importing a big file."|trans }}
     </p>
 
-    <form enctype='multipart/form-data' action='app/controllers/ImportController.php' method='post'>
-      <label class='block' for='target_csv'>{{ '1. Select a type of item to import to:'|trans }}</label>
-      <select class='clean-form col-3-form' id='target_csv' autocomplete='off' name='target'>
+    <form class='form-group' enctype='multipart/form-data' action='app/controllers/ImportController.php' method='post'>
+      <label for='target_csv'>{{ '1. Select a type of item to import to:'|trans }}</label>
+      <select class='form-control col-md-4' id='target_csv' autocomplete='off' name='target'>
         <option selected disabled>--------</option>
         {% for itemsType in itemsTypesArr %}
         <option value='{{ itemsType.category_id }}' name='category'>{{ itemsType.category }}</option>
         {% endfor %}
       </select>
 
-      <label class='block' for='visibility_csv'>{{ '2. Select a visibility:'|trans }}</label>
-      <select class='clean-form col-3-form' id='visibility_csv' autocomplete='off' name='visibility'>
+      <label for='visibility_csv'>{{ '2. Select a visibility:'|trans }}</label>
+      <select class='form-control col-md-4' id='visibility_csv' autocomplete='off' name='visibility'>
         {% for key, value in visibilityArr %}
           <option value='{{ key }}'
           {{ 'team' == key ? ' selected' }}
@@ -345,9 +361,15 @@
         {% endfor %}
       </select>
 
+      <label for='separator_csv'>{{ '3. Select a delimiter:'|trans }}</label>
+      <select class='form-control col-md-4' id='separator_csv' autocomplete='off' name='delimiter'>
+        <option value=';'>; ({{ 'semicolon'|trans }})</option>
+        <option value=','>, ({{ 'comma'|trans }})</option>
+      </select>
+
       {{ App.Csrf.getHiddenInput|raw }}
-      <label class='block' for='uploader'>{{ '3. Select a CSV file to import:'|trans }}</label>
-      <input id='uploader' name='file' type='file' accept='.csv' />
+      <label for='csvuploader' class='d-block'>{{ '4. Select a CSV file to import:'|trans }}</label>
+      <input id='csvuploader' name='file' type='file' accept='.csv' />
       <input name='type' type='hidden' value='csv' />
       <div class='submitButtonDiv'>
         <button type='submit' class='button'>{{ 'Import CSV'|trans }}</button>
@@ -359,27 +381,25 @@
     <h3>{{ 'Import a ZIP File'|trans }}</h3>
     <hr>
     <p>
-      {{ "Import a .elabftw.zip archive."|trans }}
-      <br><span class='font-weight-bold'>{{ 'You should make a backup of your database before importing thousands of items!'|trans }}</span>
+      {{ "Import a .elabftw.zip archive."|trans }} <span class='font-weight-bold'>{{ 'You should make a backup of your database before importing thousands of items!'|trans }}</span>
     </p>
 
-    <form enctype='multipart/form-data' action='app/controllers/ImportController.php' method='post'>
-
-      <label class='block' for='target_zip'>{{ '1. Select where to import:'|trans }}</label>
-      <select class='clean-form col-3-form' id='target_zip' autocomplete='off' name='target'>
+    <form class='form-group' enctype='multipart/form-data' action='app/controllers/ImportController.php' method='post'>
+      <label for='target_zip'>{{ '1. Select where to import:'|trans }}</label>
+      <select class='form-control col-md-4' id='target_zip' autocomplete='off' name='target'>
         <option selected disabled>-------</option>
-        <option class='disabled-input' disabled>Import in database</option>
+        <option disabled>Import in database</option>
         {% for itemsType in itemsTypesArr %}
-          <option value='{{ itemsType.category_id }}' name='type'>{{ itemsType.category }}</option>
+          <option value='{{ itemsType.category_id }}'>{{ itemsType.category }}</option>
         {% endfor %}
-        <option class='disabled-input' disabled>Import in experiments</option>
+        <option disabled>Import in experiments</option>
         {% for user in allTeamUsersArr %}
-          <option value='{{ user.userid }}' name='type'>{{ user.fullname|raw }}</option>
+          <option value='{{ user.userid }}'>{{ user.fullname|raw }}</option>
         {% endfor %}
       </select>
 
-      <label class='block' for='visibility_zip'>{{ '2. Select a visibility:'|trans }}</label>
-      <select class='clean-form col-3-form' id='visibility_zip' autocomplete='off' name='visibility'>
+      <label for='visibility_zip'>{{ '2. Select a visibility:'|trans }}</label>
+      <select class='form-control col-md-4' id='visibility_zip' autocomplete='off' name='visibility'>
         {% for key, value in visibilityArr %}
           <option value='{{ key }}'
           {{ 'team' == key ? ' selected' }}
@@ -388,8 +408,8 @@
       </select>
 
       {{ App.Csrf.getHiddenInput|raw }}
-      <label class='block' for='uploader'>{{ '3. Select a ZIP file to import:'|trans }}</label>
-      <input id='uploader' name='file' type='file' accept='.elabftw.zip' />
+      <label class='d-block' for='zipuploader'>{{ '3. Select a ZIP file to import:'|trans }}</label>
+      <input id='zipuploader' name='file' type='file' accept='.elabftw.zip' />
       <input name='type' type='hidden' value='zip' />
 
       <div class='submitButtonDiv'>

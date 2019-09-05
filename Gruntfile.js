@@ -16,7 +16,6 @@ module.exports = function(grunt) {
       dist: {
         files: {
           'web/app/js/elabftw.min.js': [
-              'node_modules/vanderlee-colorpicker/jquery.colorpicker.js',
               'node_modules/jquery-jeditable/src/jquery.jeditable.js',
               'web/app/js/vendor/keymaster.js',
               'web/app/js/vendor/cornify.js',
@@ -57,6 +56,8 @@ module.exports = function(grunt) {
           'web/app/js/change-pass.min.js': 'web/app/js/src/change-pass.js',
           'web/app/js/show.min.js': 'web/app/js/src/show.js',
           'web/app/js/edit.min.js': 'web/app/js/src/edit.js',
+          'web/app/js/steps-links.min.js': 'web/app/js/src/steps-links.js',
+          'web/app/js/relative-moment.min.js': 'web/app/js/src/relative-moment.js',
           'web/app/js/search.min.js': 'web/app/js/src/search.js',
           'web/app/js/tags.min.js': 'web/app/js/src/tags.js',
           'web/app/js/ucp.min.js': 'web/app/js/src/ucp.js',
@@ -84,25 +85,20 @@ module.exports = function(grunt) {
               'node_modules/dropzone/dist/dropzone.css',
               'node_modules/fullcalendar/dist/fullcalendar.css',
               'node_modules/bootstrap/dist/css/bootstrap.css',
-              'node_modules/vanderlee-colorpicker/jquery.colorpicker.css',
               'node_modules/@fancyapps/fancybox/dist/jquery.fancybox.css',
               'node_modules/jquery-ui-dist/jquery-ui.css',
+              'web/app/css/autocomplete.css',
               'web/app/css/main.css'],
 
           'web/app/css/pdf.min.css': 'web/app/css/pdf.css',
 
-          'web/app/css/bootstrap-markdown.min.css': 'node_modules/bootstrap-markdown/css/bootstrap-markdown.min.css'
+          'web/app/css/bootstrap-markdown.min.css': 'node_modules/bootstrap-markdown/css/bootstrap-markdown.min.css',
+          'web/app/css/tinymce/skin.min.css': 'node_modules/tinymce/skins/ui/oxide/skin.css',
+          'web/app/css/tinymce/content.min.css': 'node_modules/tinymce/skins/ui/oxide/content.css',
         }
       }
     },
     shell: {
-      rununit: {
-        command: 'php vendor/bin/codecept run unit'
-      },
-      // xdebug must be ENABLED
-      runcoverage: {
-        command: 'php vendor/bin/codecept run --skip acceptance --skip functionnal --coverage --coverage-html'
-      },
       // run yarn install
       yarninstall: {
         command: 'yarn install'
@@ -119,7 +115,4 @@ module.exports = function(grunt) {
   grunt.registerTask('yarn', 'shell:yarninstall');
   grunt.registerTask('default', ['yarn', 'uglify', 'cssmin']);
   grunt.registerTask('css', 'cssmin');
-  grunt.registerTask('unit', 'shell:rununit');
-  grunt.registerTask('cov', 'shell:runcoverage');
-
 };

@@ -14,10 +14,10 @@ use Defuse\Crypto\Crypto;
 use Defuse\Crypto\Key;
 use Elabftw\Elabftw\Db;
 use Elabftw\Elabftw\Sql;
-use Elabftw\Elabftw\Tools;
 use Elabftw\Elabftw\Update;
 use Elabftw\Exceptions\DatabaseErrorException;
 use Elabftw\Exceptions\IllegalActionException;
+use Elabftw\Services\Check;
 use PDO;
 
 /**
@@ -25,11 +25,11 @@ use PDO;
  */
 class Config
 {
-    /** @var Db $Db SQL Database */
-    protected $Db;
-
     /** @var array $configArr the array with all config */
     public $configArr;
+
+    /** @var Db $Db SQL Database */
+    protected $Db;
 
     /**
      * Get Db and load the configArr
@@ -55,12 +55,15 @@ class Config
     {
         $configArr = array();
 
-        $sql = "SELECT * FROM config";
+        $sql = 'SELECT * FROM config';
         $req = $this->Db->prepare($sql);
         if ($req->execute() !== true) {
             throw new DatabaseErrorException('Error while executing SQL query.');
         }
         $config = $req->fetchAll(PDO::FETCH_COLUMN | PDO::FETCH_GROUP);
+        if ($config === false) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
         foreach ($config as $name => $value) {
             $configArr[$name] = $value[0];
         }
@@ -97,10 +100,10 @@ class Config
             $post['url'] = filter_var($post['url'], FILTER_SANITIZE_URL);
         }
 
-        if (isset($post['login_tries']) && Tools::checkId((int) $post['login_tries']) === false) {
+        if (isset($post['login_tries']) && Check::id((int) $post['login_tries']) === false) {
             throw new IllegalActionException('Bad value for number of login attempts!');
         }
-        if (isset($post['ban_time']) && Tools::checkId((int) $post['ban_time']) === false) {
+        if (isset($post['ban_time']) && Check::id((int) $post['ban_time']) === false) {
             throw new IllegalActionException('Bad value for number of login attempts!');
         }
 
@@ -111,7 +114,7 @@ class Config
 
         // loop the array and update config
         foreach ($post as $name => $value) {
-            $sql = "UPDATE config SET conf_value = :value WHERE conf_name = :name";
+            $sql = 'UPDATE config SET conf_value = :value WHERE conf_name = :name';
             $req = $this->Db->prepare($sql);
             $req->bindParam(':value', $value);
             $req->bindParam(':name', $name);
@@ -142,7 +145,7 @@ class Config
      */
     public function restoreDefaults(): void
     {
-        $sql = "DELETE FROM config";
+        $sql = 'DELETE FROM config';
         $req = $this->Db->prepare($sql);
         if ($req->execute() !== true) {
             throw new DatabaseErrorException('Error while executing SQL query.');
@@ -155,7 +158,7 @@ class Config
      *
      * @return void
      */
-    public function populate(): void
+    private function populate(): void
     {
         $Update = new Update($this, new Sql());
         $schema = $Update->getRequiredSchema();
@@ -179,8 +182,9 @@ class Config
             ('stamppass', ''),
             ('stampshare', '1'),
             ('stampprovider', 'http://zeitstempel.dfn.de/'),
-            ('stampcert', 'app/dfn-cert/pki.dfn.pem'),
+            ('stampcert', 'src/dfn-cert/pki.dfn.pem'),
             ('stamphash', 'sha256'),
+            ('saml_toggle', '0'),
             ('saml_debug', '0'),
             ('saml_strict', '1'),
             ('saml_baseurl', NULL),
@@ -193,6 +197,8 @@ class Config
             ('saml_x509', NULL),
             ('saml_privatekey', NULL),
             ('saml_team', NULL),
+            ('saml_team_create', '1'),
+            ('saml_team_default', NULL),
             ('saml_email', NULL),
             ('saml_firstname', NULL),
             ('saml_lastname', NULL),
@@ -203,7 +209,22 @@ class Config
             ('schema', :schema),
             ('open_science', '0'),
             ('open_team', NULL),
-            ('privacy_policy', NULL);";
+            ('privacy_policy', NULL),
+            ('announcement', NULL),
+            ('saml_nameidencrypted', 0),
+            ('saml_authnrequestssigned', 0),
+            ('saml_logoutrequestsigned', 0),
+            ('saml_logoutresponsesigned', 0),
+            ('saml_signmetadata', 0),
+            ('saml_wantmessagessigned', 0),
+            ('saml_wantassertionsencrypted', 0),
+            ('saml_wantassertionssigned', 0),
+            ('saml_wantnameid', 1),
+            ('saml_wantnameidencrypted', 0),
+            ('saml_wantxmlvalidation', 1),
+            ('saml_relaxdestinationvalidation', 0),
+            ('saml_lowercaseurlencoding', 0),
+            ('deletable_xp', 1);";
 
         $req = $this->Db->prepare($sql);
         $req->bindParam(':schema', $schema);

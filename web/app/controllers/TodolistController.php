@@ -15,6 +15,7 @@ use Elabftw\Exceptions\FilesystemErrorException;
 use Elabftw\Exceptions\IllegalActionException;
 use Elabftw\Exceptions\ImproperActionException;
 use Elabftw\Models\Todolist;
+use Elabftw\Services\Check;
 use Exception;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
@@ -26,7 +27,7 @@ require_once \dirname(__DIR__) . '/init.inc.php';
 $Response = new JsonResponse();
 $Response->setData(array(
     'res' => true,
-    'msg' => _('Saved')
+    'msg' => _('Saved'),
 ));
 
 try {
@@ -39,7 +40,7 @@ try {
             $Response->setData(array(
                 'res' => true,
                 'msg' => _('Saved'),
-                'id' => $id
+                'id' => $id,
             ));
         }
     }
@@ -49,7 +50,7 @@ try {
         $body = $Request->request->filter('body', null, FILTER_SANITIZE_STRING);
         $id_arr = explode('_', $Request->request->get('id'));
         $id = (int) $id_arr[1];
-        if (Tools::checkId($id) === false) {
+        if (Check::id($id) === false) {
             throw new IllegalActionException('The id parameter is invalid');
         }
         $Todolist->update($id, $body);
@@ -60,7 +61,7 @@ try {
         $Todolist->destroy((int) $Request->request->get('id'));
         $Response->setData(array(
             'res' => true,
-            'msg' => _('Item deleted successfully')
+            'msg' => _('Item deleted successfully'),
         ));
     }
 
@@ -69,33 +70,28 @@ try {
         $Todolist->destroyAll();
         $Response->setData(array(
             'res' => true,
-            'msg' => _('Item deleted successfully')
+            'msg' => _('Item deleted successfully'),
         ));
     }
-
 } catch (ImproperActionException $e) {
     $Response->setData(array(
         'res' => false,
-        'msg' => $e->getMessage()
+        'msg' => $e->getMessage(),
     ));
-
 } catch (IllegalActionException $e) {
     $App->Log->notice('', array(array('userid' => $App->Session->get('userid')), array('IllegalAction', $e)));
     $Response->setData(array(
         'res' => false,
-        'msg' => Tools::error(true)
+        'msg' => Tools::error(true),
     ));
-
 } catch (DatabaseErrorException | FilesystemErrorException $e) {
     $App->Log->notice('', array(array('userid' => $App->Session->get('userid')), array('Error', $e)));
     $Response->setData(array(
         'res' => false,
-        'msg' => $e->getMessage()
+        'msg' => $e->getMessage(),
     ));
-
 } catch (Exception $e) {
     $App->Log->error('', array(array('userid' => $App->Session->get('userid')), array('exception' => $e)));
-
 } finally {
     $Response->send();
 }

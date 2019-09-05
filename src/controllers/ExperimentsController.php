@@ -10,14 +10,15 @@ declare(strict_types=1);
 
 namespace Elabftw\Controllers;
 
+use Elabftw\Elabftw\App;
+use Elabftw\Elabftw\Tools;
 use Elabftw\Exceptions\ImproperActionException;
 use Elabftw\Models\Experiments;
-use Elabftw\Models\Status;
 use Elabftw\Models\Revisions;
+use Elabftw\Models\Status;
 use Elabftw\Models\TeamGroups;
 use Elabftw\Models\Templates;
-use Elabftw\Elabftw\Tools;
-use Elabftw\Elabftw\App;
+use Elabftw\Services\Check;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -25,6 +26,9 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class ExperimentsController extends AbstractEntityController
 {
+    /** @var Experiments $Entity instance of Experiments */
+    protected $Entity;
+
     /**
      * Constructor
      *
@@ -72,7 +76,7 @@ class ExperimentsController extends AbstractEntityController
             'stepsArr' => $stepsArr,
             'timestampInfo' => $timestampInfo,
             'commentsArr' => $commentsArr,
-            'mode' => 'view'
+            'mode' => 'view',
         );
 
         $Response = new Response();
@@ -122,7 +126,7 @@ class ExperimentsController extends AbstractEntityController
             'mode' => 'edit',
             'revNum' => $revNum,
             'stepsArr' => $stepsArr,
-            'visibilityArr' => $visibilityArr
+            'visibilityArr' => $visibilityArr,
         );
 
         $Response = new Response();
@@ -144,32 +148,28 @@ class ExperimentsController extends AbstractEntityController
         $getTags = false;
 
         // CATEGORY FILTER
-        if (Tools::checkId((int) $this->App->Request->query->get('cat')) !== false) {
-            $this->Entity->categoryFilter = " AND status.id = " . $this->App->Request->query->get('cat');
+        if (Check::id((int) $this->App->Request->query->get('cat')) !== false) {
+            $this->Entity->categoryFilter = ' AND status.id = ' . $this->App->Request->query->get('cat');
             $searchType = 'filter';
         }
         // TAG FILTER
-        if (!empty($this->App->Request->query->get('tags'))) {
-            $having = "HAVING ";
+        if (!empty($this->App->Request->query->get('tags')[0])) {
+            $having = 'HAVING ';
             foreach ($this->App->Request->query->get('tags') as $tag) {
                 $tag = \filter_var($tag, FILTER_SANITIZE_STRING);
-                $having .= "tags LIKE '%$tag%' AND ";
+                $having .= " (tags LIKE '%|$tag|%' OR tags LIKE '$tag' OR tags LIKE '$tag|%' OR tags LIKE '%|$tag') AND ";
             }
             $this->Entity->tagFilter = rtrim($having, ' AND');
             $searchType = 'tag';
             $getTags = true;
         }
         // QUERY FILTER
-        if ($this->App->Request->query->get('q') != '') {
-            $query = filter_var($this->App->Request->query->get('q'), FILTER_SANITIZE_STRING);
-            $this->Entity->queryFilter = " AND (
-                title LIKE '%$query%' OR
-                date LIKE '%$query%' OR
-                body LIKE '%$query%' OR
-                elabid LIKE '%$query%'
-            )";
+        if (!empty($this->App->Request->query->get('q'))) {
+            $query = $this->App->Request->query->filter('q', null, FILTER_SANITIZE_STRING);
+            $this->Entity->queryFilter = Tools::getSearchSql($query, 'and', '', 'experiments');
             $searchType = 'query';
         }
+
         // ORDER
         $order = '';
 
@@ -185,7 +185,7 @@ class ExperimentsController extends AbstractEntityController
 
         if ($order === 'cat') {
             $this->Entity->order = 'status.id';
-        } elseif ($order === 'date' || $order === 'rating' || $order === 'title') {
+        } elseif ($order === 'date' || $order === 'rating' || $order === 'title' || $order === 'id') {
             $this->Entity->order = 'experiments.' . $order;
         } elseif ($order === 'comment') {
             $this->Entity->order = 'experiments_comments.recent_comment';
@@ -210,12 +210,12 @@ class ExperimentsController extends AbstractEntityController
 
         // PAGINATION
         $limit = (int) $this->Entity->Users->userData['limit_nb'] ?? 15;
-        if ($this->App->Request->query->has('limit') && Tools::checkId((int) $this->App->Request->query->get('limit')) !== false) {
-            $limit = (int) $this->App->Request->query->get('limit');
+        if ($this->App->Request->query->has('limit')) {
+            $limit = Check::limit((int) $this->App->Request->query->get('limit'));
         }
 
         $offset = 0;
-        if ($this->App->Request->query->has('offset') && Tools::checkId((int) $this->App->Request->query->get('offset')) !== false) {
+        if ($this->App->Request->query->has('offset') && Check::id((int) $this->App->Request->query->get('offset')) !== false) {
             $offset = (int) $this->App->Request->query->get('offset');
         }
 
@@ -231,11 +231,11 @@ class ExperimentsController extends AbstractEntityController
 
         // READ ALL ITEMS
 
-        if ($this->App->Request->getSession()->get('anon')) {
+        if ($this->App->Session->get('anon')) {
             $this->Entity->visibilityFilter = "AND experiments.visibility = 'public'";
             $itemsArr = $this->Entity->read($getTags);
         // related filter
-        } elseif (Tools::checkId((int) $this->App->Request->query->get('related')) !== false) {
+        } elseif (Check::id((int) $this->App->Request->query->get('related')) !== false) {
             $searchType = 'related';
             $itemsArr = $this->Entity->readRelated((int) $this->App->Request->query->get('related'));
         } else {
@@ -255,10 +255,11 @@ class ExperimentsController extends AbstractEntityController
             'itemsArr' => $itemsArr,
             'offset' => $offset,
             'query' => $query,
+            'limit' => $limit,
             'searchType' => $searchType,
             'tag' => $tag,
             'templatesArr' => $templatesArr,
-            'visibilityArr' => $visibilityArr
+            'visibilityArr' => $visibilityArr,
         );
         $Response = new Response();
         $Response->prepare($this->App->Request);

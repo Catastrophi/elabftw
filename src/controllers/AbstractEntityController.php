@@ -11,9 +11,9 @@ declare(strict_types=1);
 namespace Elabftw\Controllers;
 
 use Elabftw\Elabftw\App;
+use Elabftw\Interfaces\ControllerInterface;
 use Elabftw\Models\AbstractEntity;
 use Elabftw\Models\Database;
-use Elabftw\Interfaces\ControllerInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Response;
@@ -45,27 +45,6 @@ abstract class AbstractEntityController implements ControllerInterface
     }
 
     /**
-     * View mode
-     *
-     * @return Response
-     */
-    abstract protected function view(): Response;
-
-    /**
-     * Edit mode
-     *
-     * @return Response
-     */
-    abstract protected function edit(): Response;
-
-    /**
-     * Show mode
-     *
-     * @return Response
-     */
-    abstract protected function show(): Response;
-
-    /**
      * Get the Response object from the Request
      *
      * @return Response
@@ -85,7 +64,7 @@ abstract class AbstractEntityController implements ControllerInterface
         // CREATE
         if ($this->App->Request->query->has('create')) {
             $id = $this->Entity->create((int) $this->App->Request->query->get('tpl'));
-            return new RedirectResponse('?mode=edit&id=' . $id);
+            return new RedirectResponse('?mode=edit&id=' . (string) $id);
         }
 
         // UPDATE RATING
@@ -95,7 +74,7 @@ abstract class AbstractEntityController implements ControllerInterface
             $Response = new JsonResponse();
             $Response->setData(array(
                 'res' => true,
-                'msg' => _('Saved')
+                'msg' => _('Saved'),
             ));
             return $Response;
         }
@@ -103,4 +82,25 @@ abstract class AbstractEntityController implements ControllerInterface
         // DEFAULT MODE IS SHOW
         return $this->show();
     }
+
+    /**
+     * View mode
+     *
+     * @return Response
+     */
+    abstract protected function view(): Response;
+
+    /**
+     * Edit mode
+     *
+     * @return Response
+     */
+    abstract protected function edit(): Response;
+
+    /**
+     * Show mode
+     *
+     * @return Response
+     */
+    abstract protected function show(): Response;
 }

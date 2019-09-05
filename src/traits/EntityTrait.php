@@ -11,9 +11,8 @@ declare(strict_types=1);
 namespace Elabftw\Traits;
 
 use Elabftw\Elabftw\Db;
-use Elabftw\Models\Users;
 use Elabftw\Exceptions\IllegalActionException;
-use Elabftw\Elabftw\Tools;
+use Elabftw\Services\Check;
 
 /**
  * For things that are used by experiments, database, status, item types, templates, …
@@ -21,17 +20,14 @@ use Elabftw\Elabftw\Tools;
  */
 trait EntityTrait
 {
-    /** @var Db $Db SQL Database */
-    protected $Db;
-
-    /** @var Users $Users our user */
-    public $Users;
-
     /** @var int|null $id Id of the entity */
     public $id;
 
     /** @var array $entityData content of entity */
     public $entityData = array();
+
+    /** @var Db $Db SQL Database */
+    protected $Db;
 
     /**
      * Check and set id
@@ -42,7 +38,7 @@ trait EntityTrait
      */
     public function setId(int $id): void
     {
-        if (Tools::checkId($id) === false) {
+        if (Check::id($id) === false) {
             throw new IllegalActionException('The id parameter is not valid!');
         }
         $this->id = $id;

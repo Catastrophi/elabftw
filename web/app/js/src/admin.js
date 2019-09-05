@@ -12,14 +12,14 @@
     tinymce.init({
       mode: 'specific_textareas',
       editor_selector: 'mceditable',
+      skin_url: 'app/css/tinymce',
       browser_spellcheck: true,
       content_css: 'app/css/tinymce.css',
-      plugins: 'table textcolor searchreplace code fullscreen insertdatetime paste charmap lists advlist save image imagetools link pagebreak',
+      plugins: 'table searchreplace code fullscreen insertdatetime paste charmap lists advlist save image imagetools link pagebreak',
       pagebreak_separator: '<pagebreak>',
-      toolbar1: 'undo redo | bold italic underline | fontsizeselect | alignleft aligncenter alignright alignjustify | superscript subscript | bullist numlist outdent indent | forecolor backcolor | charmap | codesample | link | save',
-      removed_menuitems: 'newdocument',
+      toolbar1: 'undo redo | styleselect bold italic underline | alignleft aligncenter alignright alignjustify | superscript subscript | bullist numlist outdent indent | forecolor backcolor | charmap | codesample | link',
+      removed_menuitems: 'newdocument, image',
       image_caption: true,
-      content_style: '.mce-content-body {font-size:10pt;}',
       language : $('#info').data('lang')
     });
   }
@@ -115,6 +115,11 @@
       controller: 'app/controllers/StatusController.php',
       create: function() {
         var name = $('#statusName').val();
+        if (name === '') {
+          notif({'res': false, 'msg': 'Name cannot be empty'});
+          $('#statusName').css('border-color', 'red');
+          return false;
+        }
         var color = $('#statusColor').val();
         var isTimestampable = +$('#statusTimestamp').is(':checked');
 
@@ -142,7 +147,7 @@
           name: name,
           color: color,
           isTimestampable: isTimestampable,
-          isDefault: isDefault
+          isDefault: isDefault ? 1 : 0,
         }).done(function(json) {
           notif(json);
         });
@@ -176,6 +181,11 @@
       controller: 'app/controllers/ItemsTypesAjaxController.php',
       create: function() {
         var name = $('#itemsTypesName').val();
+        if (name === '') {
+          notif({'res': false, 'msg': 'Name cannot be empty'});
+          $('#itemsTypesName').css('border-color', 'red');
+          return false;
+        }
         var color = $('#itemsTypesColor').val();
         var checkbox = $('#itemsTypesBookable').is(':checked');
         var bookable = 0;
@@ -209,7 +219,13 @@
         if (checkbox) {
           bookable = 1;
         }
+        // if tinymce is hidden, it'll fail to trigger
+        // so we toggle it quickly to grab the content
+        if ($('#itemsTypesTemplate_' + id).is(':hidden')) {
+          this.showEditor(id);
+        }
         var template = tinymce.get('itemsTypesTemplate_' + id).getContent();
+        $('#itemsTypesEditor_' + id).toggle();
 
         $.post(this.controller, {
           itemsTypesUpdate: true,
@@ -230,10 +246,12 @@
           notif(json);
           if (json.res) {
             $('#itemstypes_' + id).hide();
+            $('#itemstypesOrder_' + id).hide();
           }
         });
       }
     };
+
     $('.itemsTypesEditor').hide();
     $(document).on('click', '#itemsTypesCreate', function() {
       ItemsTypes.create();
@@ -280,18 +298,10 @@
 
     });
 
-    // COLORPICKER
-    $('.colorpicker').colorpicker({
-      hsv: false,
-      okOnEnter: true,
-      rgb: false
-    });
-
     // randomize the input of the color picker so even if user doesn't change the color it's a different one!
     // from https://www.paulirish.com/2009/random-hex-color-code-snippets/
-    var colorInput = Math.floor(Math.random()*16777215).toString(16);
-    $('#itemsTypesColor').val(colorInput);
-    $('#statusColor').val(colorInput);
+    var colorInput = '#' + Math.floor(Math.random()*16777215).toString(16);
+    $('.randomColor').val(colorInput);
 
     $('.tag-editable').editable(function(value) {
       $.post('app/controllers/TagsController.php', {

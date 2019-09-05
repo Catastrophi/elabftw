@@ -14,7 +14,10 @@ use Elabftw\Exceptions\DatabaseErrorException;
 use Elabftw\Exceptions\FilesystemErrorException;
 use Elabftw\Exceptions\IllegalActionException;
 use Elabftw\Exceptions\ImproperActionException;
+use Elabftw\Exceptions\InvalidCsrfTokenException;
 use Elabftw\Models\ApiKeys;
+use Elabftw\Models\Database;
+use Elabftw\Models\Experiments;
 use Elabftw\Models\Templates;
 use Exception;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -28,7 +31,7 @@ require_once \dirname(__DIR__) . '/init.inc.php';
 $Response = new JsonResponse();
 $Response->setData(array(
     'res' => true,
-    'msg' => _('Saved')
+    'msg' => _('Saved'),
 ));
 
 try {
@@ -57,29 +60,36 @@ try {
         $ApiKeys->destroy((int) $Request->request->get('id'));
     }
 
-} catch (ImproperActionException $e) {
+    // GET UPLOADED FILES
+    if ($Request->query->has('getFiles')) {
+        if ($Request->query->get('type') === 'experiments') {
+            $Entity = new Experiments($App->Users, (int) $Request->query->get('id'));
+        } else {
+            $Entity = new Database($App->Users, (int) $Request->query->get('id'));
+        }
+        $Entity->canOrExplode('read');
+        $uploads = $Entity->Uploads->readAll();
+        $Response->setData($uploads);
+    }
+} catch (ImproperActionException | InvalidCsrfTokenException $e) {
     $Response->setData(array(
         'res' => false,
-        'msg' => $e->getMessage()
+        'msg' => $e->getMessage(),
     ));
-
 } catch (IllegalActionException $e) {
     $App->Log->notice('', array(array('userid' => $App->Session->get('userid')), array('IllegalAction', $e->getMessage())));
     $Response->setData(array(
         'res' => false,
-        'msg' => Tools::error(true)
+        'msg' => Tools::error(true),
     ));
-
 } catch (DatabaseErrorException | FilesystemErrorException $e) {
     $App->Log->error('', array(array('userid' => $App->Session->get('userid')), array('Error', $e)));
     $Response->setData(array(
         'res' => false,
-        'msg' => $e->getMessage()
+        'msg' => $e->getMessage(),
     ));
-
 } catch (Exception $e) {
     $App->Log->error('', array(array('userid' => $App->Session->get('userid')), array('exception' => $e)));
-
 } finally {
     $Response->send();
 }

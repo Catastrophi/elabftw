@@ -36,6 +36,7 @@
           $('#filesdiv').load('?mode=edit&id=' + $('#info').data('id') + ' #filesdiv', function() {
             // make the comment zone editable (fix issue #54)
             makeEditableFileComment();
+            displayMolFiles(); // eslint-disable-line no-undef
           });
         }
       });
@@ -96,6 +97,43 @@
     // END DATA RECOVERY
     ////////////////////
 
+    // GET MOL FILES
+    function getListFromMolFiles() {
+      let mols = [];
+      $.get('app/controllers/AjaxController.php', {
+        getFiles: true,
+        type: type,
+        id: id,
+      }).done(function(uploadedFiles) {
+        uploadedFiles.forEach(function(upload) {
+          if (upload.real_name.split('.').pop() === 'mol') {
+            mols.push([upload.real_name, upload.long_name]);
+          }
+        });
+        if (mols.length === 0) {
+          notif({res: false, msg: 'No mol files found.'});
+          return;
+        }
+        let listHtml = '<ul class="text-left">';
+        mols.forEach(function(mol, index) {
+          listHtml += '<li style="color:#29aeb9" class="clickable loadableMolLink" data-target="app/download.php?f=' + mols[index][1] + '">' + mols[index][0] + '</li>';
+        });
+        $('.getMolButton').text('Refresh list');
+        $('.getMolDiv').html(listHtml + '</ul>');
+      });
+    }
+
+    $(document).on('click', '.getMolButton', function() {
+      getListFromMolFiles();
+    });
+
+    // Load the content of a mol file from the list in the mol editor
+    $(document).on('click', '.loadableMolLink', function() {
+      $.get($(this).data('target')).done(function(molContent) {
+        $('#sketcher_open_text').val(molContent);
+      });
+    });
+    // END GET MOL FILES
 
     class Entity {
 
@@ -110,46 +148,6 @@
             notif(json);
             if (json.res) {
               window.location.replace(location);
-            }
-          });
-        }
-      }
-    }
-
-    class Link {
-
-      create() {
-        // get link
-        let link = $('#linkinput').val();
-        // fix for user pressing enter with no input
-        if (link.length > 0) {
-          // parseint will get the id, and not the rest (in case there is number in title)
-          link = parseInt(link, 10);
-          if (!isNaN(link)) {
-            $.post('app/controllers/ExperimentsAjaxController.php', {
-              createLink: true,
-              id: id,
-              linkId: link
-            }).done(function () {
-              // reload the link list
-              $('#links_div').load('experiments.php?mode=edit&id=' + id + ' #links_div');
-              // clear input field
-              $('#linkinput').val('');
-            });
-          } // end if input is bad
-        } // end if input < 0
-      }
-
-      destroy(linkId) {
-        if (confirm(confirmText)) {
-          $.post('app/controllers/ExperimentsAjaxController.php', {
-            destroyLink: true,
-            id: id,
-            linkId: linkId
-          }).done(function(json) {
-            notif(json);
-            if (json.res) {
-              $('#links_div').load('experiments.php?mode=edit&id=' + id + ' #links_div');
             }
           });
         }
@@ -173,60 +171,6 @@
     }
 
 
-    class Step {
-
-      create() {
-        // get body
-        let body = $('#stepinput').val();
-        // fix for user pressing enter with no input
-        if (body.length > 0) {
-          $.post('app/controllers/ExperimentsAjaxController.php', {
-            createStep: true,
-            id: id,
-            body: body
-          }).done(function() {
-            // reload the step list
-            $('#steps_div').load('experiments.php?mode=edit&id=' + id + ' #steps_div', function() {
-              relativeMoment();
-            });
-            // clear input field
-            $('#stepinput').val('');
-          });
-        } // end if input < 0
-      }
-
-      finish(stepId) {
-        $.post('app/controllers/ExperimentsAjaxController.php', {
-          finishStep: true,
-          id: id,
-          stepId: stepId
-        }).done(function() {
-          // reload the step list
-          $('#steps_div').load('experiments.php?mode=edit&id=' + id + ' #steps_div', function() {
-            relativeMoment();
-          });
-          // clear input field
-          $('#stepinput').val('');
-        });
-      }
-
-      destroy(stepId) {
-        if (confirm(confirmText)) {
-          $.post('app/controllers/ExperimentsAjaxController.php', {
-            destroyStep: true,
-            id: id,
-            stepId: stepId
-          }).done(function(json) {
-            notif(json);
-            if (json.res) {
-              $('#steps_div').load('experiments.php?mode=edit&id=' + id + ' #steps_div', function() {
-                relativeMoment();
-              });
-            }
-          });
-        }
-      }
-    }
 
     // DESTROY ENTITY
     const EntityC = new Entity();
@@ -234,68 +178,6 @@
       EntityC.destroy();
     });
 
-    ////////
-    // STEPS
-    const StepC = new Step();
-
-    // CREATE
-    $(document).on('keypress blur', '#stepinput', function (e) {
-      // Enter is ascii code 13
-      if (e.which === 13 || e.type === 'focusout') {
-        StepC.create();
-      }
-    });
-
-    // STEP IS DONE
-    $(document).on('click', 'input[type=checkbox]', function() {
-      StepC.finish($(this).data('stepid'));
-    });
-
-
-    // DESTROY
-    $(document).on('click', '.stepDestroy', function() {
-      StepC.destroy($(this).data('stepid'));
-    });
-
-    // END STEPS
-    ////////////
-
-    ////////
-    // LINKS
-    const LinkC = new Link();
-
-    // CREATE
-    // listen keypress, add link when it's enter or on blur
-    $(document).on('keypress blur', '#linkinput', function (e) {
-      // Enter is ascii code 13
-      if (e.which === 13 || e.type === 'focusout') {
-        LinkC.create();
-      }
-    });
-
-    // AUTOCOMPLETE
-    let cache = {};
-    $( '#linkinput' ).autocomplete({
-      source: function(request, response) {
-        let term = request.term;
-        if (term in cache) {
-          response(cache[term]);
-          return;
-        }
-        $.getJSON('app/controllers/ExperimentsAjaxController.php', request, function(data) {
-          cache[term] = data;
-          response(data);
-        });
-      }
-    });
-
-    // DESTROY
-    $(document).on('click', '.linkDestroy', function() {
-      LinkC.destroy($(this).data('linkid'));
-    });
-
-    // END LINKS
-    ////////////
 
     // VISIBILITY SELECT
     $(document).on('change', '#visibility_select', function() {
@@ -397,7 +279,7 @@
     });
 
     // DATEPICKER
-    $( '#datepicker' ).datepicker({dateFormat: 'yymmdd'});
+    $('#datepicker').datepicker({dateFormat: 'yymmdd'});
     // If the title is 'Untitled', clear it on focus
     $('#title_input').focus(function(){
       if ($(this).val() === $('#info').data('untitled')) {
@@ -405,8 +287,27 @@
       }
     });
 
+    // ANNOTATE IMAGE
+    $(document).on('click', '.annotateImg',  function() {
+      $('.canvasDiv').show();
+      $(document).scrollTop($('#doodle-anchor').offset().top);
+      var context = document.getElementById('doodleCanvas').getContext('2d');
+      var img = new Image();
+      // set src attribute to image path
+      img.src = 'app/download.php?f=' + $(this).data('path');
+      img.onload = function(){
+        // make canvas bigger than image
+        context.canvas.width = this.width * 2;
+        context.canvas.height = this.height * 2;
+        // add image to canvas
+        context.drawImage(img, this.width / 2, this.height / 2);
+      };
+    });
     // STAR RATING
     const StarC = new Star();
+    $('.rating-cancel').click(function() {
+      StarC.update(0);
+    });
     $('.star').click(function() {
       StarC.update($(this).data('rating').current[0].innerText);
     });
@@ -416,11 +317,11 @@
       mode: 'specific_textareas',
       editor_selector: 'mceditable',
       browser_spellcheck: true,
-      content_css: 'app/css/tinymce.css',
-      plugins: 'table textcolor searchreplace code fullscreen insertdatetime paste charmap lists advlist save image imagetools link pagebreak mention codesample hr',
+      skin_url: 'app/css/tinymce',
+      plugins: 'table searchreplace code fullscreen insertdatetime paste charmap lists advlist save image imagetools link pagebreak mention codesample hr',
       pagebreak_separator: '<pagebreak>',
-      toolbar1: 'undo redo | bold italic underline | fontsizeselect | alignleft aligncenter alignright alignjustify | superscript subscript | bullist numlist outdent indent | forecolor backcolor | charmap | codesample | link | save',
-      removed_menuitems: 'newdocument',
+      toolbar1: 'undo redo | styleselect bold italic underline | alignleft aligncenter alignright alignjustify | superscript subscript | bullist numlist outdent indent | forecolor backcolor | charmap | codesample | link | save',
+      removed_menuitems: 'newdocument, image',
       image_caption: true,
       content_style: '.mce-content-body {font-size:10pt;}',
       codesample_languages: [
@@ -458,22 +359,17 @@
         });
       },
       mentions: {
-        // # is for items + all experiments of the team, $ is for items + user's experiments
-        delimiter: ['#', '$'],
+        // use # for autocompletion
+        delimiter: '#',
         // get the source from json with get request
-        source: function (query, process, delimiter) {
-          let url = 'app/controllers/EntityAjaxController.php?mention=1&term=' + query;
-          if (delimiter === '#') {
-            $.getJSON(url, function(data) {
-              process(data);
-            });
-          }
-          if (delimiter === '$') {
-            url += '&userFilter=1';
-            $.getJSON(url, function(data) {
-              process(data);
-            });
-          }
+        source: function (query, process) {
+          const url = 'app/controllers/EntityAjaxController.php';
+          $.getJSON(url, {
+            mention: 1,
+            term: query,
+          }).done(function(data) {
+            process(data);
+          });
         }
       },
       language: $('#info').data('lang'),

@@ -64,6 +64,10 @@ p {
     color: #797979;
 }
 
+section.item p {
+    margin-bottom: 0;
+}
+
 /* LINKS */
 a,
 .link-like {
@@ -80,11 +84,6 @@ a:hover,
 /* LISTS */
 .list-group-item {
     margin-bottom: 3px;
-}
-
-ul,
-li {
-    list-style: none;
 }
 
 .clean-list {
@@ -105,20 +104,15 @@ input,
 select,
 textarea {
     padding: 7px;
-    background-color: #f2f2f2;
     color: #797979;
     border-radius: 4px;
     border: 1px #e3e3e3 solid;
 }
 
-.disabled-input {
-    color: #989898;
-}
-
 select {
     -moz-appearance: none;
     -webkit-appearance: none;
-    background: #f2f2f2 url("images/ico-arrow.png") no-repeat 93% 56%;
+    background: #fff url("images/ico-arrow.png") no-repeat 93% 56%;
     padding-right: 31px;
 }
 
@@ -161,6 +155,24 @@ img {
 hr {
     margin: 10px 0 20px 0;
     color: #dcdddc;
+}
+
+/* BLOCKQUOTE */
+blockquote {
+    background: #f9f9f9;
+    border-left: 10px solid #ccc;
+    margin: 1.5em 10px;
+    padding: 0.5em 10px;
+    quotes: "\201C""\201D""\2018""\2019";
+}
+
+blockquote::before {
+    color: #ccc;
+    content: open-quote;
+    font-size: 4em;
+    line-height: 0.1em;
+    margin-right: 0.25em;
+    vertical-align: -0.4em;
 }
 
 /* TITLES */
@@ -212,6 +224,10 @@ label {
     display: none;
     padding: 5px;
     margin: 15px 0;
+}
+
+li.tip {
+    list-style: none;
 }
 
 #help {
@@ -503,24 +519,6 @@ section.item {
     font-size: 110%;
 }
 
-/* LOGIN.PHP */
-.block {
-    display: block;
-    margin: 5px 0 0;
-}
-
-.clean-form {
-    margin: 0 0 15px;
-}
-
-.col-3-form {
-    width: 30%;
-}
-
-.col-textarea-form {
-    width: 60%;
-}
-
 #loginButtonDiv {
     border-top: 1px solid #e3e3e3;
     padding-top: 30px;
@@ -579,17 +577,6 @@ summary::before {
     content: "► ";
     font-size: 120%;
     color: #29aeb9;
-}
-
-/* fix the list in the body */
-div.txt ol li {
-    /* !important because there is a list-style-type:none in jquery-ui */
-    list-style-type: decimal !important;
-}
-
-div.txt li {
-    /* !important because there is a list-style-type:none in jquery-ui */
-    list-style-type: square !important;
 }
 
 /* fix for big images uploaded in the text */
@@ -727,12 +714,6 @@ input[type='checkbox'] {
     margin: 0;
 }
 
-/* NEW Template Settings */
-.new-tpl-box input {
-    width: 100%;
-    margin: 0 0 15px;
-}
-
 .draggable {
     cursor: move;
 }
@@ -747,40 +728,8 @@ input[type='checkbox'] {
 }
 
 /* EXPERIMENTS/DATABASE - FILTER & ORDER */
-.select-order,
-.select-filter-status,
-.select-filter-cat,
-.select-sort {
-    float: left;
-    border-right: 0;
-    margin: 0;
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
-}
-
-.select-create {
-    float: left;
-    margin-left: 0;
-}
-
-.select-sort {
-    float: left;
-    margin-left: 0;
-    border-right: 0;
-    margin-right: 0;
-    border-radius: 0;
-}
-
-.submit-order,
-.submit-filter {
-    float: left;
-    border-right: 0;
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-}
-
-.submit-reset {
-    float: left;
+form#filter-order-sort select {
+    margin-left: 2px;
 }
 
 /* elabftw colors for buttons */
@@ -890,9 +839,13 @@ input[type='checkbox'] {
     overflow-wrap: break-word;
 }
 
+.clickable.title_view:hover {
+    transition: color 0.8s ease;
+    color: #29aeb9;
+}
+
 .date {
     color: #5d5d5d;
-    margin: 15px auto;
     padding: 0 5px;
 }
 
@@ -937,33 +890,26 @@ input[type='checkbox'] {
 }
 
 /* TAGS */
-.tags {
-    line-height: 150%;
-    margin-bottom: 10px;
-    width: 90%;
-}
-
-.tags a {
-    text-decoration: none;
-    color: #29aeb9;
-}
-
 .tag {
     font: bold 13px Verdana, Arial, Helvetica, sans-serif;
     line-height: 300%;
     border-radius: 5px;
     border: 1px solid #ccc;
-    color: #5d5d5d;
-    margin: auto 0;
+    color: #797979;
     padding: 0 5px;
 }
 
-.tag:hover {
-    color: #900;
+a.tag:hover {
+    color: #29aeb9 !important;
+}
+
+a.tag-delete:hover {
+    transition: color 0.8s ease;
+    color: #dd1e00 !important;
 }
 
 .tags a:hover {
-    color: #343434;
+    color: #5d5d5d;
 }
 
 /* FOOTER */
@@ -1178,4 +1124,12 @@ figure.image figcaption {
 /* make the markdown editor full width */
 .markdown-textarea {
     width: 100%;
+}
+
+.togglableHidden {
+    display: none;
+}
+
+input[type='color'] {
+    padding: 5px 10px;
 }

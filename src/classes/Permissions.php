@@ -10,8 +10,10 @@ declare(strict_types=1);
 
 namespace Elabftw\Elabftw;
 
-use Elabftw\Models\Users;
 use Elabftw\Models\TeamGroups;
+use Elabftw\Models\Users;
+use Elabftw\Services\Check;
+use Symfony\Component\HttpFoundation\Request;
 
 /**
  * Determine read and write access for a user and an entity
@@ -38,7 +40,7 @@ class Permissions
     }
 
     /**
-     * Get permissions for a template
+     * Get permissions for a database item
      *
      * @return array
      */
@@ -50,7 +52,7 @@ class Permissions
         }
 
         // if we are in same team and visibility is not a group or user, we can read/write fo' shizzle ma nizzle
-        if ($this->item['team'] === $this->Users->userData['team'] && (Tools::checkId((int) $this->item['visibility']) === false && $this->item['visibility'] !== 'user')) {
+        if ($this->item['team'] === $this->Users->userData['team'] && (Check::id((int) $this->item['visibility']) === false && $this->item['visibility'] !== 'user')) {
             $ret = array('read' => true, 'write' => true);
             // anon don't get to write anything
             if (isset($this->Users->userData['anon'])) {
@@ -87,7 +89,7 @@ class Permissions
         }
 
         // if the vis. setting is a team group, check we are in the group
-        if (Tools::checkId((int) $this->item['visibility']) !== false) {
+        if (Check::id((int) $this->item['visibility']) !== false) {
             $TeamGroups = new TeamGroups($this->Users);
             if ($TeamGroups->isInTeamGroup((int) $this->Users->userData['userid'], (int) $this->item['visibility'])) {
                 return array('read' => true, 'write' => true);
@@ -103,6 +105,8 @@ class Permissions
      */
     public function forExperiments(): array
     {
+        $write = false;
+
         // if we own the experiment, we have read/write rights on it for sure
         if ($this->item['userid'] === $this->Users->userData['userid']) {
             return array('read' => true, 'write' => true);
@@ -113,44 +117,61 @@ class Permissions
         if ($this->Users->userData['is_admin'] && $this->item['team'] === $this->Users->userData['team']) {
             return array('read' => true, 'write' => true);
         }
+
         // if we don't own the experiment (and we are not admin), we need to check if owner allowed edits
         // get the owner data
         $Owner = new Users((int) $this->item['userid']);
         // owner allows edit and is in same team and we are not anon
         if ($Owner->userData['allow_edit'] &&
-            $this->item['team'] == $this->Users->userData['team'] &&
-            !isset($this->Users->userData['anon'])) {
-            return array('read' => true, 'write' => true);
+            $this->item['team'] === $this->Users->userData['team']
+            && !isset($this->Users->userData['anon'])) {
+            $write = true;
+        }
+
+        // if group edits only are accepted
+        if ($Owner->userData['allow_group_edit']
+            && $this->item['team'] === $this->Users->userData['team']
+            && !isset($this->Users->userData['anon'])) {
+            $TeamGroups = new TeamGroups($this->Users);
+            if ($TeamGroups->isUserInSameGroup((int) $Owner->userData['userid'])) {
+                $write = true;
+            }
         }
 
         // if we don't own the experiment (and we are not admin), we need to check the visibility
         // if the vis. setting is public, we can see it for sure
         if ($this->item['visibility'] === 'public') {
-            return array('read' => true, 'write' => false);
+            return array('read' => true, 'write' => $write);
         }
 
         // if it's organization, we need to be logged in
         if (($this->item['visibility'] === 'organization') && $this->Users->userData['userid'] !== null) {
-            return array('read' => true, 'write' => false);
+            return array('read' => true, 'write' => $write);
         }
 
         // if the vis. setting is team, check we are in the same team than the $item
         // we also check for anon because anon will have the same team as real team member
         if (($this->item['visibility'] === 'team') &&
-            ($this->item['team'] == $this->Users->userData['team']) &&
+            ($this->item['team'] === $this->Users->userData['team']) &&
             !isset($this->Users->userData['anon'])) {
-            return array('read' => true, 'write' => false);
+            return array('read' => true, 'write' => $write);
         }
 
         // if the vis. setting is a team group, check we are in the group
-        if (Tools::checkId((int) $this->item['visibility']) !== false) {
+        if (Check::id((int) $this->item['visibility']) !== false) {
             $TeamGroups = new TeamGroups($this->Users);
             if ($TeamGroups->isInTeamGroup((int) $this->Users->userData['userid'], (int) $this->item['visibility'])) {
-                return array('read' => true, 'write' => false);
+                return array('read' => true, 'write' => $write);
             }
         }
 
-        return array('read' => false, 'write' => false);
+        // if we have the elabid in the URL, allow read access to all
+        $Request = Request::createFromGlobals();
+        if ($this->item['elabid'] === $Request->query->get('elabid')) {
+            return array('read' => true, 'write' => $write);
+        }
+
+        return array('read' => false, 'write' => $write);
     }
 
     /**

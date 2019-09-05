@@ -1,7 +1,5 @@
 <?php
 /**
- * \Elabftw\Elabftw\App
- *
  * @package   Elabftw\Elabftw
  * @author    Nicolas CARPi <nicolas.carpi@curie.fr>
  * @copyright 2012 Nicolas CARPi
@@ -12,13 +10,15 @@ declare(strict_types=1);
 
 namespace Elabftw\Elabftw;
 
-use Elabftw\Exceptions\FilesystemErrorException;
 use Elabftw\Models\Config;
-use Elabftw\Models\Users;
-use Elabftw\Models\Todolist;
 use Elabftw\Models\Teams;
-use Monolog\Logger;
+use Elabftw\Models\Todolist;
+use Elabftw\Models\Users;
+use Elabftw\Services\Check;
+use Elabftw\Traits\TwigTrait;
+use Elabftw\Traits\UploadTrait;
 use Monolog\Handler\ErrorLogHandler;
+use Monolog\Logger;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Session\Session;
 
@@ -27,6 +27,9 @@ use Symfony\Component\HttpFoundation\Session\Session;
  */
 class App
 {
+    use UploadTrait;
+    use TwigTrait;
+
     /** @var Request $Request the request */
     public $Request;
 
@@ -47,9 +50,6 @@ class App
 
     /** @var Db $Db SQL Database */
     public $Db;
-
-    /** @var \Twig_Environment $Twig instance of Twig */
-    public $Twig;
 
     /** @var string $pageTitle the title for the current page */
     public $pageTitle = 'Lab manager';
@@ -72,84 +72,26 @@ class App
     /**
      * Constructor
      *
-     * @param Session $session
      * @param Request $request
-     * @param Config $config
-     * @param Logger $log
      */
-    public function __construct(
-        Session $session,
-        Request $request,
-        Config $config,
-        Logger $log,
-        Csrf $csrf
-    ) {
+    public function __construct(Request $request, Session $session, Config $config, Logger $log, Csrf $csrf)
+    {
         $this->Request = $request;
-        $this->Config = $config;
-        $this->Log = $log;
-        $this->Log->pushHandler(new ErrorLogHandler());
-        $this->Users = new Users(null, new Auth($request, $session), new Config());
-
-        $this->Db = Db::getConnection();
         $this->Session = $session;
-        $this->Csrf = $csrf;
-        $this->Twig = $this->getTwig();
-
         $this->ok = $this->Session->getFlashBag()->get('ok');
         $this->ko = $this->Session->getFlashBag()->get('ko');
         $this->warning = $this->Session->getFlashBag()->get('warning');
-    }
 
-    /**
-     * Prepare the Twig object
-     *
-     * @return \Twig_Environment
-     */
-    private function getTwig(): \Twig_Environment
-    {
-        $elabRoot = \dirname(__DIR__, 2);
-        $loader = new \Twig\Loader\FilesystemLoader("$elabRoot/src/templates");
-        $cache = "$elabRoot/cache/twig";
-        if (!is_dir($cache) && !mkdir($cache, 0700) && !is_dir($cache)) {
-            throw new FilesystemErrorException("Unable to create the cache directory ($cache)");
-        }
-        $options = array();
+        $this->Config = $config;
+        $this->Log = $log;
+        $this->Log->pushHandler(new ErrorLogHandler());
+        $this->Csrf = $csrf;
 
-        // enable cache if not in debug (dev) mode
-        if (!$this->Config->configArr['debug']) {
-            $options = array('cache' => $cache);
-        }
-        $TwigEnvironment = new \Twig\Environment($loader, $options);
-
-        // custom twig filters
-        //
-        // WARNING: MIRROR MODIFS TO SRC/TOOLS/GENERATE-CACHE.PHP!!
-        //
-        $filterOptions = array('is_safe' => array('html'));
-        $msgFilter = new \Twig\TwigFilter('msg', '\Elabftw\Elabftw\Tools::displayMessage', $filterOptions);
-        $dateFilter = new \Twig\TwigFilter('kdate', '\Elabftw\Elabftw\Tools::formatDate', $filterOptions);
-        $mdFilter = new \Twig\TwigFilter('md2html', '\Elabftw\Elabftw\Tools::md2html', $filterOptions);
-        $starsFilter = new \Twig\TwigFilter('stars', '\Elabftw\Elabftw\Tools::showStars', $filterOptions);
-        $bytesFilter = new \Twig\TwigFilter('formatBytes', '\Elabftw\Elabftw\Tools::formatBytes', $filterOptions);
-        $extFilter = new \Twig\TwigFilter('getExt', '\Elabftw\Elabftw\Tools::getExt', $filterOptions);
-        $filesizeFilter = new \Twig\TwigFilter('filesize', '\filesize', $filterOptions);
-
-        $TwigEnvironment->addFilter($msgFilter);
-        $TwigEnvironment->addFilter($dateFilter);
-        $TwigEnvironment->addFilter($mdFilter);
-        $TwigEnvironment->addFilter($starsFilter);
-        $TwigEnvironment->addFilter($bytesFilter);
-        $TwigEnvironment->addFilter($extFilter);
-        $TwigEnvironment->addFilter($filesizeFilter);
-
-        // i18n for twig
-        $TwigEnvironment->addExtension(new \Twig_Extensions_Extension_I18n());
-
-        // add the version as a global var so we can have it for the ?v=x.x.x for js files
-        $ReleaseCheck = new ReleaseCheck($this->Config);
-        $TwigEnvironment->addGlobal('v', $ReleaseCheck::INSTALLED_VERSION);
-
-        return $TwigEnvironment;
+        $this->Users = new Users();
+        $this->Db = Db::getConnection();
+        // UPDATE SQL SCHEMA if necessary or show error message if version mismatch
+        $Update = new Update($this->Config, new Sql());
+        $Update->checkSchema();
     }
 
     /**
@@ -170,6 +112,16 @@ class App
     public function getMemoryUsage(): int
     {
         return memory_get_usage();
+    }
+
+    /**
+     * Get the mininum password length for injecting in templates
+     *
+     * @return int
+     */
+    public function getMinPasswordLength(): int
+    {
+        return Check::MIN_PASSWORD_LENGTH;
     }
 
     /**
@@ -215,6 +167,6 @@ class App
      */
     public function render(string $template, array $variables): string
     {
-        return $this->Twig->render($template, array_merge(array('App' => $this), $variables));
+        return $this->getTwig($this->Config)->render($template, array_merge(array('App' => $this), $variables));
     }
 }

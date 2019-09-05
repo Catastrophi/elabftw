@@ -27,17 +27,17 @@ use ZipArchive;
  */
 class ImportZip extends AbstractImport
 {
-    /** @var AbstractEntity $Entity instance of Entity */
-    private $Entity;
-
     /** @var int $inserted number of item we have inserted */
     public $inserted = 0;
 
+    /** @var AbstractEntity $Entity instance of Entity */
+    private $Entity;
+
     /** @var string $tmpPath the folder where we extract the zip */
-    private $tmpPath;
+    private $tmpPath = '';
 
     /** @var array $json an array with the data we want to import */
-    private $json;
+    private $json = array();
 
     /** @var string $type experiments or items */
     private $type = 'items';
@@ -53,12 +53,28 @@ class ImportZip extends AbstractImport
     public function __construct(Users $users, Request $request)
     {
         parent::__construct($users, $request);
+        $this->Entity = new Database($users);
+    }
+
+    /**
+     * Cleanup : remove the temporary folder created
+     */
+    public function __destruct()
+    {
+        // first remove content
+        $di = new RecursiveDirectoryIterator($this->tmpPath, FilesystemIterator::SKIP_DOTS);
+        $ri = new RecursiveIteratorIterator($di, RecursiveIteratorIterator::CHILD_FIRST);
+        foreach ($ri as $file) {
+            $file->isDir() ? rmdir($file->getPathname()) : unlink($file->getPathname());
+        }
+        // and remove folder itself
+        rmdir($this->tmpPath);
     }
 
     /**
      * Do the import
      *
-     * @return null
+     * @return void
      */
     public function import(): void
     {
@@ -74,6 +90,18 @@ class ImportZip extends AbstractImport
     }
 
     /**
+     * Extract the zip to the temporary folder
+     *
+     * @return void
+     */
+    private function openFile(): void
+    {
+        $Zip = new ZipArchive();
+        $Zip->open($this->UploadedFile->getPathname());
+        $Zip->extractTo($this->tmpPath);
+    }
+
+    /**
      * We get all the info we need from the embedded .json file
      *
      * @throws ImproperActionException
@@ -81,7 +109,7 @@ class ImportZip extends AbstractImport
      */
     private function readJson(): void
     {
-        $file = $this->tmpPath . "/.elabftw.json";
+        $file = $this->tmpPath . '/.elabftw.json';
         $content = file_get_contents($file);
         if ($content === false) {
             throw new ImproperActionException('Unable to read the json file!');
@@ -115,12 +143,12 @@ class ImportZip extends AbstractImport
      */
     private function dbInsert($item): void
     {
-        $sql = "INSERT INTO items(team, title, date, body, userid, category, visibility)
-            VALUES(:team, :title, :date, :body, :userid, :category, :visibility)";
+        $sql = 'INSERT INTO items(team, title, date, body, userid, category, visibility)
+            VALUES(:team, :title, :date, :body, :userid, :category, :visibility)';
 
         if ($this->type === 'experiments') {
-            $sql = "INSERT into experiments(team, title, date, body, userid, visibility, category, elabid)
-                VALUES(:team, :title, :date, :body, :userid, :visibility, :category, :elabid)";
+            $sql = 'INSERT into experiments(team, title, date, body, userid, visibility, category, elabid)
+                VALUES(:team, :title, :date, :body, :userid, :visibility, :category, :elabid)';
         }
         $req = $this->Db->prepare($sql);
         $req->bindParam(':team', $this->Users->userData['team'], PDO::PARAM_INT);
@@ -147,7 +175,7 @@ class ImportZip extends AbstractImport
         if ($this->type === 'experiments') {
             $this->Entity = new Experiments($this->Users, $newItemId);
         } else {
-            $this->Entity = new Database($this->Users, $newItemId);
+            $this->Entity->setId($newItemId);
         }
 
         if (\mb_strlen($item['tags'] ?? '') > 1) {
@@ -181,7 +209,7 @@ class ImportZip extends AbstractImport
 
             // upload the attached files
             if (is_array($item['uploads'])) {
-                $titlePath = preg_replace('/[^A-Za-z0-9]/', '_', $item['title']);
+                $titlePath = preg_replace('/[^A-Za-z0-9]/', '_', $item['title']) ?? 'file';
                 foreach ($item['uploads'] as $file) {
                     if ($this->type === 'experiments') {
                         $filePath = $this->tmpPath . '/' .
@@ -203,31 +231,5 @@ class ImportZip extends AbstractImport
             }
             ++$this->inserted;
         }
-    }
-
-    /**
-     * Extract the zip to the temporary folder
-     *
-     * @return void
-     */
-    protected function openFile(): void
-    {
-        $Zip = new ZipArchive();
-        $Zip->open($this->UploadedFile->getPathname()) && $Zip->extractTo($this->tmpPath);
-    }
-
-    /**
-     * Cleanup : remove the temporary folder created
-     */
-    public function __destruct()
-    {
-        // first remove content
-        $di = new RecursiveDirectoryIterator($this->tmpPath, FilesystemIterator::SKIP_DOTS);
-        $ri = new RecursiveIteratorIterator($di, RecursiveIteratorIterator::CHILD_FIRST);
-        foreach ($ri as $file) {
-            $file->isDir() ? rmdir($file->getPathname()) : unlink($file->getPathname());
-        }
-        // and remove folder itself
-        rmdir($this->tmpPath);
     }
 }

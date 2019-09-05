@@ -1,5 +1,15 @@
-<?php
-// Here you can initialize variables that will be available to your tests
+<?php declare(strict_types=1);
+/**
+ * @author Nicolas CARPi <nicolas.carpi@curie.fr>
+ * @copyright 2012 Nicolas CARPi
+ * @see https://www.elabftw.net Official website
+ * @license AGPL-3.0
+ * @package elabftw
+ */
+
+/**
+ * Login to the test instance
+ */
 function testLogin($I)
 {
     // if snapshot exists -> skip login
@@ -8,7 +18,7 @@ function testLogin($I)
     }
     // logging in
     $I->amOnPage('/login.php');
-    $I->submitForm('#login', ['email' => 'phpunit@yopmail.com', 'password' => 'phpunitftw']);
+    $I->submitForm('#login', array('email' => 'phpunit@yopmail.com', 'password' => 'phpunitftw'));
     // saving snapshot
     $I->saveSessionSnapshot('login');
 }

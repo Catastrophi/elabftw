@@ -11,9 +11,10 @@ declare(strict_types=1);
 namespace Elabftw\Models;
 
 use Elabftw\Elabftw\Db;
-use Elabftw\Elabftw\Tools;
 use Elabftw\Exceptions\DatabaseErrorException;
 use Elabftw\Exceptions\ImproperActionException;
+use Elabftw\Services\Check;
+use Elabftw\Services\Filter;
 use Elabftw\Traits\EntityTrait;
 use PDO;
 
@@ -23,6 +24,9 @@ use PDO;
 class ItemsTypes extends AbstractCategory
 {
     use EntityTrait;
+
+    /** @var Users $Users our user */
+    private $Users;
 
     /**
      * Constructor
@@ -59,11 +63,11 @@ class ItemsTypes extends AbstractCategory
         if ($name === '') {
             $name = 'Unnamed';
         }
-        $color = filter_var(substr($color, 0, 6), FILTER_SANITIZE_STRING);
-        $template = Tools::checkBody($template);
+        $color = Check::color($color);
+        $template = Filter::body($template);
 
-        $sql = "INSERT INTO items_types(name, color, bookable, template, team)
-            VALUES(:name, :color, :bookable, :template, :team)";
+        $sql = 'INSERT INTO items_types(name, color, bookable, template, team)
+            VALUES(:name, :color, :bookable, :template, :team)';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':name', $name);
         $req->bindParam(':color', $color);
@@ -83,7 +87,7 @@ class ItemsTypes extends AbstractCategory
      */
     public function read(): string
     {
-        $sql = "SELECT template FROM items_types WHERE id = :id AND team = :team";
+        $sql = 'SELECT template FROM items_types WHERE id = :id AND team = :team';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':id', $this->id, PDO::PARAM_INT);
         $req->bindParam(':team', $this->Users->userData['team'], PDO::PARAM_INT);
@@ -96,7 +100,7 @@ class ItemsTypes extends AbstractCategory
         }
 
         $res = $req->fetchColumn();
-        if ($res === false) {
+        if ($res === false || $res === null) {
             return '';
         }
         return $res;
@@ -109,13 +113,13 @@ class ItemsTypes extends AbstractCategory
      */
     public function readAll(): array
     {
-        $sql = "SELECT items_types.id AS category_id,
+        $sql = 'SELECT items_types.id AS category_id,
             items_types.name AS category,
             items_types.color,
             items_types.bookable,
             items_types.template,
             items_types.ordering
-            from items_types WHERE team = :team ORDER BY ordering ASC";
+            from items_types WHERE team = :team ORDER BY ordering ASC';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':team', $this->Users->userData['team'], PDO::PARAM_INT);
         if ($req->execute() !== true) {
@@ -137,7 +141,7 @@ class ItemsTypes extends AbstractCategory
      */
     public function readColor(int $id): string
     {
-        $sql = "SELECT color FROM items_types WHERE id = :id";
+        $sql = 'SELECT color FROM items_types WHERE id = :id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':id', $id, PDO::PARAM_INT);
         if ($req->execute() !== true) {
@@ -145,7 +149,7 @@ class ItemsTypes extends AbstractCategory
         }
 
         $res = $req->fetchColumn();
-        if ($res === false) {
+        if ($res === false || $res === null) {
             return '';
         }
         return $res;
@@ -164,15 +168,15 @@ class ItemsTypes extends AbstractCategory
     public function update(int $id, string $name, string $color, int $bookable, string $template): void
     {
         $name = filter_var($name, FILTER_SANITIZE_STRING);
-        $color = filter_var($color, FILTER_SANITIZE_STRING);
-        $template = Tools::checkBody($template);
-        $sql = "UPDATE items_types SET
+        $color = Check::color($color);
+        $template = Filter::body($template);
+        $sql = 'UPDATE items_types SET
             name = :name,
             team = :team,
             color = :color,
             bookable = :bookable,
             template = :template
-            WHERE id = :id";
+            WHERE id = :id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':name', $name);
         $req->bindParam(':color', $color);
@@ -187,23 +191,6 @@ class ItemsTypes extends AbstractCategory
     }
 
     /**
-     * Count all items of this type
-     *
-     * @param int $id of the type
-     * @return int
-     */
-    protected function countItems(int $id): int
-    {
-        $sql = "SELECT COUNT(*) FROM items WHERE category = :category";
-        $req = $this->Db->prepare($sql);
-        $req->bindParam(':category', $id, PDO::PARAM_INT);
-        if ($req->execute() !== true) {
-            throw new DatabaseErrorException('Error while executing SQL query.');
-        }
-        return (int) $req->fetchColumn();
-    }
-
-    /**
      * Destroy an item type
      *
      * @param int $id
@@ -213,9 +200,9 @@ class ItemsTypes extends AbstractCategory
     {
         // don't allow deletion of an item type with items
         if ($this->countItems($id) > 0) {
-            throw new ImproperActionException(_("Remove all database items with this type before deleting this type."));
+            throw new ImproperActionException(_('Remove all database items with this type before deleting this type.'));
         }
-        $sql = "DELETE FROM items_types WHERE id = :id AND team = :team";
+        $sql = 'DELETE FROM items_types WHERE id = :id AND team = :team';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':id', $id, PDO::PARAM_INT);
         $req->bindParam(':team', $this->Users->userData['team'], PDO::PARAM_INT);
@@ -233,5 +220,22 @@ class ItemsTypes extends AbstractCategory
     public function destroyAll(): void
     {
         return;
+    }
+
+    /**
+     * Count all items of this type
+     *
+     * @param int $id of the type
+     * @return int
+     */
+    protected function countItems(int $id): int
+    {
+        $sql = 'SELECT COUNT(*) FROM items WHERE category = :category';
+        $req = $this->Db->prepare($sql);
+        $req->bindParam(':category', $id, PDO::PARAM_INT);
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
+        return (int) $req->fetchColumn();
     }
 }

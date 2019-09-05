@@ -1,6 +1,4 @@
 /**
- * fontawesome.es.js
- *
  * @author Nicolas CARPi <nicolas.carpi@curie.fr>
  * @copyright 2012 Nicolas CARPi
  * @see https://www.elabftw.net Official website
@@ -17,6 +15,7 @@ import { library, dom } from '@fortawesome/fontawesome-svg-core';
 // SOLID
 import {
   faBold,
+  faBug,
   faCalendarPlus,
   faChartPie,
   faCheck,
@@ -38,6 +37,7 @@ import {
   faFileArchive,
   faFileCode,
   faFileExcel,
+  faFileImage,
   faFilePdf,
   faFilePowerpoint,
   faFileVideo,
@@ -60,6 +60,7 @@ import {
   faQuestionCircle,
   faQuoteLeft,
   faSearch,
+  faShareAlt,
   faSignOutAlt,
   faSort,
   faSquare,
@@ -75,6 +76,7 @@ import {
 
 library.add(
   faBold,
+  faBug,
   faCalendarPlus,
   faChartPie,
   faCheck,
@@ -96,6 +98,7 @@ library.add(
   faFileArchive,
   faFileCode,
   faFileExcel,
+  faFileImage,
   faFilePdf,
   faFilePowerpoint,
   faFileVideo,
@@ -118,6 +121,7 @@ library.add(
   faQuestionCircle,
   faQuoteLeft,
   faSearch,
+  faShareAlt,
   faSignOutAlt,
   faSort,
   faSquare,

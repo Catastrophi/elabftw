@@ -1,4 +1,4 @@
-<?php
+<?php declare(strict_types=1);
 /**
  * app/logout.php
  *
@@ -8,14 +8,10 @@
  * @license AGPL-3.0
  * @package elabftw
  */
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Session\Session;
 
 require_once \dirname(__DIR__, 2) . '/vendor/autoload.php';
-
-// create Request object
-$Request = Request::createFromGlobals();
 
 $Session = new Session();
 $Session->start();
@@ -23,7 +19,7 @@ $Session->start();
 // kill session
 $Session->invalidate();
 // disable token cookie
-setcookie('token', '', time() - 3600, '/', null, true, true);
+setcookie('token', '', time() - 3600, '/', '', true, true);
 // and redirect to login page
 $Response = new RedirectResponse('../login.php');
 $Response->send();

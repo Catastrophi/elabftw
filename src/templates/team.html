@@ -17,9 +17,9 @@
 <div class='divhandle' id='tab1div'>
     {% if itemsArr|length == 0 %}
         {{ 'No bookable items.'|trans|msg('warning', false) }}
-    {% elseif Scheduler.Database.id is not null %}
+    {% elseif itemData is not null %}
         <a href='#' id='change-item'>{{ 'Change item'|trans }}</a>
-        <h4><span style='color:#{{ Scheduler.itemData.color }}'>{{ Scheduler.itemData.category }}</span> - {{ Scheduler.itemData.title }}</h4>
+        <h4><span style='color:#{{ itemData.color }}'>{{ itemData.category }}</span> - {{ itemData.title }}</h4>
         <div id='scheduler'></div>
     {% else %}
     <div class='row'>
@@ -95,7 +95,7 @@
             {% endtrans %}
         {% else %}
         {% for tag, class in cloudArr %}
-            <a href='experiments.php?mode=show&tag={{ tag|raw }}' class='{{ class }}'>{{ tag|raw }}</a>
+            <a href='experiments.php?mode=show&tags[]={{ tag|raw }}' class='{{ class }}'>{{ tag|raw }}</a>
         {% endfor %}
 
         {% endif %}
@@ -136,6 +136,9 @@
 
             <div class='txt' id='e{{ template.id }}'>{{ template.body|raw }}</div>
 
+          {% set stepsArr = Entity.Steps.readFromId(template.id) %}
+          {% set linksArr = Entity.Links.readFromId(template.id) %}
+          {% include('steps-links-view.html') %}
         </div>
         {% endfor %}
     {% else %}
@@ -169,5 +172,9 @@
     data-lang="{{ lang }}"
     data-item="{{ selectedItem }}"></div>
 <script src='app/js/tabs.min.js?v={{ v }}'></script>
-<script src='app/js/team.min.js?v={{ v }}'></script>
+{% if App.Config.configArr.debug %}
+  <script src='app/js/src/team.js?v={{ v }}'></script>
+{% else %}
+  <script src='app/js/team.min.js?v={{ v }}'></script>
+{% endif %}
 {% endblock body %}

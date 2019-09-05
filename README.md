@@ -11,7 +11,6 @@
 [![CircleCI](https://circleci.com/gh/elabftw/elabftw/tree/master.svg?style=svg)](https://circleci.com/gh/elabftw/elabftw/tree/master)
 
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/9942fbe6c6f14f488be69e51e93a1c10)](https://www.codacy.com/app/elabftw/elabftw)
-[![Codeclimate](https://d3s6mut3hikguw.cloudfront.net/github/elabftw/elabftw/badges/gpa.svg)](https://codeclimate.com/github/elabftw/elabftw)
 [![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/elabftw/elabftw/badges/quality-score.png?b=master)](https://scrutinizer-ci.com/g/elabftw/elabftw/?branch=master)
 [![Join the chat at https://gitter.im/elabftw/elabftw](https://badges.gitter.im/elabftw/elabftw.svg)](https://gitter.im/elabftw/elabftw?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![License](https://img.shields.io/badge/license-AGPL-blue.svg)](https://www.gnu.org/licenses/agpl-3.0.en.html)
@@ -21,16 +20,10 @@
 
 # Description
 
-- Tired of that shared excel file for your antibodies or plasmids?
+**eLabFTW** is an electronic lab notebook manager for research teams.
 
-- Want to be able to search in your past experiments as easily as you would do it on google?
-
-- Want an electronic lab notebook that lets you timestamp legally your experiments?
-
-Then you are at the right place!
-
-**eLabFTW** is an electronic lab notebook manager for research teams. It features a database where any kind of objects (such as antibodies, plasmids, cell lines, boxes, _etc_.) can be stored.
-It can be accessed _via_ the browser. Several research teams can be hosted on the same installation. This means **eLabFTW** can be installed at the institute level and host all team members at the same place. This is what is done at [Institut Curie](http://www.curie.fr) and in several other research centers around the globe.
+It lets you store and organize your research experiments easily. It also features a database where any kind of objects (such as antibodies, plasmids, cell lines, boxes, _etc_.) can be stored.
+It is accessed _via_ the browser. Several research teams can be hosted on the same installation. This means **eLabFTW** can be installed at the institute level and host all team members at the same place. This is what is done at [Institut Curie](http://www.curie.fr) and in several other research centers around the globe.
 
 Click the image below to see it in bigger size:
 [![Demo gif](https://i.imgur.com/pH6Qvwf.gif)](https://gfycat.com/WillingIncompleteAstarte)
@@ -61,9 +54,11 @@ gpg --search-keys "Nicolas CARPi"
 
 # Support
 
-Please [open a GitHub issue](https://github.com/elabftw/elabftw/issues/new) if you have a problem, want to make a suggestion, ask a question or discuss a feature.
+Free support is available through [GitHub issues](https://github.com/elabftw/elabftw/issues/new). Please open an issue if you have a problem, want to make a suggestion, ask a question or discuss a feature.
 
 You can also join the [chat room on Gitter](https://gitter.im/elabftw/elabftw).
+
+Pro support, hosting or commercial license are available from [Deltablot](https://www.deltablot.com/elabftw).
 
 [Subscribe to the newsletter](http://eepurl.com/bTjcMj) to be notified when a new release is out!
 

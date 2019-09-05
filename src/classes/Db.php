@@ -13,8 +13,8 @@ declare(strict_types=1);
 namespace Elabftw\Elabftw;
 
 use Elabftw\Exceptions\DatabaseErrorException;
-use PDOException;
 use PDO;
+use PDOException;
 
 /**
  * Connect to the database with a singleton class
@@ -55,15 +55,29 @@ final class Db
     }
 
     /**
+     * Disallow cloning the class
+     */
+    private function __clone()
+    {
+    }
+
+    /**
+     * Disallow wakeup also
+     */
+    public function __wakeup()
+    {
+    }
+
+    /**
      * Return the instance of the class
      *
      * @throws PDOException If connection to database failed
      * @return Db The instance of the class
      */
-    public static function getConnection(): Db
+    public static function getConnection(): self
     {
         if (self::$instance === null) {
-            self::$instance = new Db();
+            self::$instance = new self();
         }
 
         return self::$instance;
@@ -75,7 +89,7 @@ final class Db
      * @param string $sql The SQL query
      * @return \PDOStatement
      */
-    public function prepare($sql): \PDOStatement
+    public function prepare(string $sql): \PDOStatement
     {
         $this->nq++;
         return $this->connection->prepare($sql);
@@ -87,7 +101,7 @@ final class Db
      * @param string $sql The SQL query
      * @return \PDOStatement
      */
-    public function q($sql): \PDOStatement
+    public function q(string $sql): \PDOStatement
     {
         $res = $this->connection->query($sql);
         if ($res === false) {
@@ -108,26 +122,12 @@ final class Db
     }
 
     /**
-     * Get number of SQL queries for the page
+     * Get number of SQL queries for the page
      *
      * @return int
      */
     public function getNumberOfQueries(): int
     {
         return $this->nq;
-    }
-
-    /**
-     * Disallow cloning the class
-     */
-    private function __clone()
-    {
-    }
-
-    /**
-     * Disallow wakeup also
-     */
-    public function __wakeup()
-    {
     }
 }

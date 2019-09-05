@@ -16,8 +16,9 @@ use Elabftw\Exceptions\IllegalActionException;
 use Elabftw\Exceptions\ImproperActionException;
 use Elabftw\Models\Database;
 use Elabftw\Models\Experiments;
-use Elabftw\Models\Templates;
 use Elabftw\Models\Tags;
+use Elabftw\Models\Templates;
+use Elabftw\Services\Check;
 use Exception;
 use Symfony\Component\HttpFoundation\JsonResponse;
 
@@ -30,7 +31,7 @@ require_once \dirname(__DIR__) . '/init.inc.php';
 $Response = new JsonResponse();
 $Response->setData(array(
     'res' => true,
-    'msg' => _('Saved')
+    'msg' => _('Saved'),
 ));
 
 try {
@@ -48,7 +49,7 @@ try {
     if ($Request->request->get('type') === 'experiments' ||
         $Request->query->get('type') === 'experiments') {
         $Entity = new Experiments($App->Users, $id);
-    } elseif ($Request->request->get('type') === 'experiments_tpl') {
+    } elseif ($Request->request->get('type') === 'experiments_templates') {
         $Entity = new Templates($App->Users, $id);
     } else {
         $Entity = new Database($App->Users, $id);
@@ -80,7 +81,7 @@ try {
 
     // UNREFERENCE TAG
     if ($Request->request->has('unreferenceTag')) {
-        if (Tools::checkId((int) $Request->request->get('tag_id')) === false) {
+        if (Check::id((int) $Request->request->get('tag_id')) === false) {
             throw new IllegalActionException('Bad id value');
         }
         $Tags->unreference((int) $Request->request->get('tag_id'));
@@ -88,35 +89,30 @@ try {
 
     // DELETE TAG
     if ($Request->request->has('destroyTag') && $App->Session->get('is_admin')) {
-        if (Tools::checkId($Request->request->get('tag_id')) === false) {
+        if (Check::id((int) $Request->request->get('tag_id')) === false) {
             throw new IllegalActionException('Bad id value');
         }
         $Tags->destroy((int) $Request->request->get('tag_id'));
     }
-
 } catch (ImproperActionException $e) {
     $Response->setData(array(
         'res' => false,
-        'msg' => $e->getMessage()
+        'msg' => $e->getMessage(),
     ));
-
 } catch (IllegalActionException $e) {
     $App->Log->notice('', array(array('userid' => $App->Session->get('userid')), array('IllegalAction', $e)));
     $Response->setData(array(
         'res' => false,
-        'msg' => Tools::error(true)
+        'msg' => Tools::error(true),
     ));
-
 } catch (DatabaseErrorException | FilesystemErrorException $e) {
     $App->Log->error('', array(array('userid' => $App->Session->get('userid')), array('Error', $e)));
     $Response->setData(array(
         'res' => false,
-        'msg' => $e->getMessage()
+        'msg' => $e->getMessage(),
     ));
-
 } catch (Exception $e) {
     $App->Log->error('', array(array('userid' => $App->Session->get('userid')), array('exception' => $e)));
-
 } finally {
     $Response->send();
 }

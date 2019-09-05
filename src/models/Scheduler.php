@@ -25,9 +25,6 @@ class Scheduler
     /** @var Database $Database instance of Database */
     public $Database;
 
-    /** @var array $itemData data array for item if it's selected */
-    public $itemData;
-
     /**
      * Constructor
      *
@@ -37,15 +34,6 @@ class Scheduler
     {
         $this->Db = Db::getConnection();
         $this->Database = $database;
-    }
-
-    /**
-     * Read the db items and store it in itemData
-     *
-     */
-    public function populate(): void
-    {
-        $this->itemData = $this->Database->read();
     }
 
     /**
@@ -60,8 +48,8 @@ class Scheduler
     {
         $title = filter_var($title, FILTER_SANITIZE_STRING);
 
-        $sql = "INSERT INTO team_events(team, item, start, end, userid, title)
-            VALUES(:team, :item, :start, :end, :userid, :title)";
+        $sql = 'INSERT INTO team_events(team, item, start, end, userid, title)
+            VALUES(:team, :item, :start, :end, :userid, :title)';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':team', $this->Database->Users->userData['team'], PDO::PARAM_INT);
         $req->bindParam(':item', $this->Database->id, PDO::PARAM_INT);
@@ -109,7 +97,7 @@ class Scheduler
      */
     public function readFromId(): array
     {
-        $sql = "SELECT * from team_events WHERE id = :id";
+        $sql = 'SELECT * from team_events WHERE id = :id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':id', $this->id, PDO::PARAM_INT);
         if ($req->execute() !== true) {
@@ -128,7 +116,7 @@ class Scheduler
      */
     public function updateStart(string $start, string $end): void
     {
-        $sql = "UPDATE team_events SET start = :start, end = :end WHERE team = :team AND id = :id";
+        $sql = 'UPDATE team_events SET start = :start, end = :end WHERE team = :team AND id = :id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':start', $start);
         $req->bindParam(':end', $end);
@@ -148,7 +136,7 @@ class Scheduler
      */
     public function updateEnd(string $end): void
     {
-        $sql = "UPDATE team_events SET end = :end WHERE team = :team AND id = :id";
+        $sql = 'UPDATE team_events SET end = :end WHERE team = :team AND id = :id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':end', $end);
         $req->bindParam(':team', $this->Database->Users->userData['team'], PDO::PARAM_INT);
@@ -166,7 +154,7 @@ class Scheduler
      */
     public function destroy(): void
     {
-        $sql = "DELETE FROM team_events WHERE id = :id";
+        $sql = 'DELETE FROM team_events WHERE id = :id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':id', $this->id, PDO::PARAM_INT);
 

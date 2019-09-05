@@ -1,6 +1,4 @@
 /**
- * profile.js - for the profile page
- *
  * @author Nicolas CARPi <nicolas.carpi@curie.fr>
  * @copyright 2012 Nicolas CARPi
  * @see https://www.elabftw.net Official website
@@ -27,16 +25,6 @@
     // GENERATE STATUS PIE CHART
     google.charts.load('current', {'packages':['corechart']});
     google.charts.setOnLoadCallback(drawChart);
-
-    $(document).on('click', '.keyDestroy', function() {
-      $.post('app/controllers/AjaxController.php', {
-        destroyApiKey: true,
-        id: $(this).data('id')
-      }).done(function(json) {
-        notif(json);
-        $('#api_div').load('profile.php #api_div');
-      });
-    });
 
   });
 }());

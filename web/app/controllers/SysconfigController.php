@@ -34,7 +34,26 @@ try {
         $App->Config->update(array('smtp_password' => null));
     }
 
-    // TAB 1 and 4 to 8
+    // ANNOUNCEMENT
+    if ($Request->request->has('announcement')) {
+        if ($Request->request->has('clear_announcement')) {
+            $App->Config->update(array('announcement' => null));
+        } else {
+            $App->Config->update(array('announcement' => $Request->request->get('announcement')));
+        }
+    }
+
+    // PRIVACY POLICY
+    if ($Request->request->has('privacy_policy')) {
+        $tab = '8';
+        if ($Request->request->has('clear_policy')) {
+            $App->Config->update(array('privacy_policy' => null));
+        } else {
+            $App->Config->update(array('privacy_policy' => $Request->request->get('privacy_policy')));
+        }
+    }
+
+    // TAB 1 and 4 to 7
     if ($Request->request->has('updateConfig')) {
         if ($Request->request->has('lang')) {
             $tab = '1';
@@ -56,10 +75,6 @@ try {
             $tab = '7';
         }
 
-        if ($Request->request->has('privacy_policy')) {
-            $tab = '8';
-        }
-
         $App->Config->update($Request->request->all());
     }
 
@@ -70,23 +85,18 @@ try {
     }
 
     $Session->getFlashBag()->add('ok', _('Saved'));
-
 } catch (ImproperActionException $e) {
     // show message to user
     $App->Session->getFlashBag()->add('ko', $e->getMessage());
-
 } catch (IllegalActionException $e) {
     $App->Log->notice('', array(array('userid' => $App->Session->get('userid')), array('IllegalAction', $e)));
     $App->Session->getFlashBag()->add('ko', Tools::error(true));
-
 } catch (DatabaseErrorException | FilesystemErrorException $e) {
     $App->Log->error('', array(array('userid' => $App->Session->get('userid')), array('Error', $e)));
-
 } catch (Exception $e) {
     $App->Log->error('', array(array('userid' => $App->Session->get('userid')), array('Exception' => $e)));
     $App->Session->getFlashBag()->add('ko', Tools::error());
-
 } finally {
-    $Response = new RedirectResponse("../../sysconfig.php?tab=" . $tab);
+    $Response = new RedirectResponse('../../sysconfig.php?tab=' . $tab);
     $Response->send();
 }

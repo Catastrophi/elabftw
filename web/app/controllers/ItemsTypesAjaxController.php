@@ -27,7 +27,7 @@ require_once \dirname(__DIR__) . '/init.inc.php';
 $Response = new JsonResponse();
 $Response->setData(array(
     'res' => true,
-    'msg' => _('Saved')
+    'msg' => _('Saved'),
 ));
 
 try {
@@ -50,7 +50,7 @@ try {
     // UPDATE ITEM TYPE
     if ($Request->request->has('itemsTypesUpdate')) {
         $ItemsTypes->update(
-            $Request->request->get('id'),
+            (int) $Request->request->get('id'),
             $Request->request->get('name'),
             $Request->request->get('color'),
             (int) $Request->request->get('bookable'),
@@ -62,30 +62,25 @@ try {
     if ($Request->request->has('itemsTypesDestroy')) {
         $ItemsTypes->destroy((int) $Request->request->get('id'));
     }
-
 } catch (ImproperActionException $e) {
     $Response->setData(array(
         'res' => false,
-        'msg' => $e->getMessage()
+        'msg' => $e->getMessage(),
     ));
-
 } catch (IllegalActionException $e) {
     $App->Log->notice('', array(array('userid' => $App->Session->get('userid')), array('IllegalAction', $e)));
     $Response->setData(array(
         'res' => false,
-        'msg' => Tools::error(true)
+        'msg' => Tools::error(true),
     ));
-
 } catch (DatabaseErrorException | FilesystemErrorException $e) {
     $App->Log->error('', array(array('userid' => $App->Session->get('userid')), array('Error', $e)));
     $Response->setData(array(
         'res' => false,
-        'msg' => $e->getMessage()
+        'msg' => $e->getMessage(),
     ));
-
 } catch (Exception $e) {
     $App->Log->error('', array(array('userid' => $App->Session->get('userid')), array('exception' => $e)));
-
 } finally {
     $Response->send();
 }

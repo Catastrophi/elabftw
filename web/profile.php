@@ -10,7 +10,6 @@ declare(strict_types=1);
 
 namespace Elabftw\Elabftw;
 
-use Elabftw\Models\ApiKeys;
 use Elabftw\Models\Experiments;
 use Exception;
 use Symfony\Component\HttpFoundation\Response;
@@ -32,9 +31,6 @@ try {
     $itemsArr = $Entity->read(false);
     $count = \count($itemsArr);
 
-    $ApiKeys = new ApiKeys($App->Users);
-    $apiKeysArr = $ApiKeys->readAll();
-
     // generate stats for the pie chart with experiments status
     // see https://developers.google.com/chart/interactive/docs/reference?csw=1#datatable-class
     $UserStats = new UserStats($App->Users, $count);
@@ -42,11 +38,13 @@ try {
     // columns
     $stats['cols'] = array(
         array(
-        'type' => 'string',
-        'label' => 'Status'),
+            'type' => 'string',
+            'label' => 'Status',
+        ),
         array(
-        'type' => 'number',
-        'label' => 'Experiments number')
+            'type' => 'number',
+            'label' => 'Experiments number',
+        ),
     );
     // rows
     foreach ($UserStats->percentArr as $name => $percent) {
@@ -59,12 +57,10 @@ try {
     $template = 'profile.html';
     $renderArr = array(
         'UserStats' => $UserStats,
-        'apiKeysArr' => $apiKeysArr,
         'colorsJson' => $colorsJson,
         'statsJson' => $statsJson,
-        'count' => $count
+        'count' => $count,
     );
-
 } catch (Exception $e) {
     $template = 'error.html';
     $renderArr = array('error' => $e->getMessage());

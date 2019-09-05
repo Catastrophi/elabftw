@@ -10,6 +10,7 @@ declare(strict_types=1);
 
 namespace Elabftw\Elabftw;
 
+use Elabftw\Models\ApiKeys;
 use Elabftw\Models\TeamGroups;
 use Elabftw\Models\Templates;
 use Exception;
@@ -26,6 +27,9 @@ $Response = new Response();
 $Response->prepare($Request);
 
 try {
+    $ApiKeys = new ApiKeys($App->Users);
+    $apiKeysArr = $ApiKeys->readAll();
+
     $TeamGroups = new TeamGroups($App->Users);
     $teamGroupsArr = $TeamGroups->readAll();
 
@@ -34,11 +38,12 @@ try {
 
     $template = 'ucp.html';
     $renderArr = array(
+        'Entity' => $Templates,
+        'apiKeysArr' => $apiKeysArr,
         'langsArr' => Tools::getLangsArr(),
         'teamGroupsArr' => $teamGroupsArr,
-        'templatesArr' => $templatesArr
+        'templatesArr' => $templatesArr,
     );
-
 } catch (Exception $e) {
     $template = 'error.html';
     $renderArr = array('error' => $e->getMessage());

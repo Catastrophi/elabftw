@@ -14,6 +14,7 @@ use Elabftw\Exceptions\DatabaseErrorException;
 use Elabftw\Exceptions\FilesystemErrorException;
 use Elabftw\Exceptions\IllegalActionException;
 use Elabftw\Exceptions\ImproperActionException;
+use Elabftw\Exceptions\InvalidCsrfTokenException;
 use Elabftw\Services\ImportCsv;
 use Elabftw\Services\ImportZip;
 use Exception;
@@ -27,7 +28,6 @@ require_once \dirname(__DIR__) . '/init.inc.php';
 $Response = new RedirectResponse('../../admin.php');
 
 try {
-
     if (!$App->Session->get('is_admin')) {
         throw new IllegalActionException('Non admin user tried to access import controller.');
     }
@@ -50,23 +50,18 @@ try {
     $msg = $Import->inserted . ' ' .
         ngettext('item imported successfully.', 'items imported successfully.', $Import->inserted);
     $App->Session->getFlashBag()->add('ok', $msg);
-
-} catch (ImproperActionException $e) {
+} catch (ImproperActionException | InvalidCsrfTokenException $e) {
     // show message to user
     $App->Session->getFlashBag()->add('ko', $e->getMessage());
-
 } catch (IllegalActionException $e) {
     $App->Log->notice('', array(array('userid' => $App->Session->get('userid')), array('IllegalAction', $e)));
     $App->Session->getFlashBag()->add('ko', Tools::error(true));
-
 } catch (DatabaseErrorException | FilesystemErrorException $e) {
     $App->Log->error('', array(array('userid' => $App->Session->get('userid')), array('Error', $e)));
     $App->Session->getFlashBag()->add('ko', $e->getMessage());
-
 } catch (Exception $e) {
     $App->Log->error('', array(array('userid' => $App->Session->get('userid')), array('Exception' => $e)));
     $App->Session->getFlashBag()->add('ko', Tools::error());
-
 } finally {
     $Response->send();
 }
