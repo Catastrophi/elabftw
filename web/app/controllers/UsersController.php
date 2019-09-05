@@ -1,135 +1,75 @@
 <?php
 /**
- * app/controllers/UsersController.php
- *
  * @author Nicolas CARPi <nicolas.carpi@curie.fr>
  * @copyright 2012 Nicolas CARPi
  * @see https://www.elabftw.net Official website
  * @license AGPL-3.0
  * @package elabftw
  */
+declare(strict_types=1);
+
 namespace Elabftw\Elabftw;
 
+use Elabftw\Exceptions\DatabaseErrorException;
+use Elabftw\Exceptions\FilesystemErrorException;
+use Elabftw\Exceptions\IllegalActionException;
+use Elabftw\Exceptions\ImproperActionException;
+use Elabftw\Exceptions\InvalidCsrfTokenException;
+use Elabftw\Models\Users;
 use Exception;
-use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 
 /**
- * Users infos from admin page
+ * Users info from admin or sysadmin page
  */
-$redirect = true;
-
 require_once \dirname(__DIR__) . '/init.inc.php';
 
-$tab = 1;
-$location = '../../admin.php?tab=' . $tab;
-$error = Tools::error();
+if ($Request->request->has('fromSysconfig')) {
+    $location = '../../sysconfig.php?tab=3';
+} else {
+    $location = '../../admin.php?tab=3';
+}
+
+$Response = new RedirectResponse($location);
 
 try {
 
-    $FormKey = new FormKey($Session);
-
-    // (RE)GENERATE AN API KEY (from profile)
-    if ($Request->request->has('generateApiKey')) {
-        $Response = new JsonResponse();
-        $redirect = false;
-        try {
-            $res = $App->Users->generateApiKey();
-        } catch (Exception $e) {
-            $error = "No suitable source of randomness found! Error: " . $e->getMessage();
-        }
-
-        if ($res) {
-            $Response->setData(array(
-                'res' => true,
-                'msg' => _('Saved')
-            ));
-        } else {
-            $Response->setData(array(
-                'res' => false,
-                'msg' => $error
-            ));
-        }
-        $Response->send();
-    }
-
-    // VALIDATE
-    if ($Request->request->has('usersValidate')) {
-        if (!$Session->get('is_admin')) {
-            throw new Exception('Non admin user tried to access admin panel.');
-        }
-
-        // loop the array
-        foreach ($Request->request->get('usersValidateIdArr') as $userid) {
-            $Session->getFlashBag()->add('ok', $App->Users->validate($userid));
-        }
-    }
+    // CSRF
+    $App->Csrf->validate();
 
     // UPDATE USERS
     if ($Request->request->has('usersUpdate')) {
+        // you need to be at least admin to validate a user
         if (!$Session->get('is_admin')) {
-            throw new Exception('Non admin user tried to access admin panel.');
-        }
-        if ($Request->request->has('fromSysconfig')) {
-            $location = "../../sysconfig.php?tab=3";
-        } else {
-            $location = "../../admin.php?tab=2";
+            throw new IllegalActionException('Non admin user tried to edit user.');
         }
 
-        try {
-            $App->Users->update($Request->request->all());
-            $Session->getFlashBag()->add('ok', _('Configuration updated successfully.'));
-        } catch (Exception $e) {
-            $Session->getFlashBag()->add('ko', $e->getMessage());
+        $targetUser = new Users((int) $Request->request->get('userid'));
+        // check we edit user of our team
+        if (($App->Users->userData['team'] !== $targetUser->userData['team']) && !$Session->get('is_sysadmin')) {
+            throw new IllegalActionException('User tried to edit user from other team.');
+        }
+        // a non sysadmin cannot put someone sysadmin
+        if ($Request->request->get('usergroup') === '1' && $App->Session->get('is_sysadmin') != 1) {
+            throw new ImproperActionException(_('Only a sysadmin can put someone sysadmin.'));
         }
 
+        $targetUser->update($Request->request->all());
     }
 
-    // ARCHIVE USER
-    if ($Request->request->has('usersArchive')) {
-
-        if (!$Session->get('is_admin')) {
-            throw new Exception('Non admin user tried to access admin panel.');
-        }
-        $Users = new Users($Request->request->get('userid'));
-        $Response = new JsonResponse();
-        $redirect = false;
-
-        if ($Users->archive()) {
-            $Response->setData(array(
-                'res' => true,
-                'msg' => _('Saved')
-            ));
-        } else {
-            $Response->setData(array(
-                'res' => false,
-                'msg' => Tools::error()
-            ));
-        }
-        $Response->send();
-    }
-
-
-    // DESTROY
-    if ($Request->request->has('usersDestroy') && $FormKey->validate($Request->request->get('formkey'))) {
-
-        if (!$Session->get('is_admin')) {
-            throw new Exception('Non admin user tried to access admin panel.');
-        }
-
-        if ($App->Users->destroy(
-            $Request->request->get('usersDestroyEmail'),
-            $Request->request->get('usersDestroyPassword')
-        )) {
-            $Session->getFlashBag()->add('ok', _('Everything was purged successfully.'));
-        }
-    }
-
+    $Session->getFlashBag()->add('ok', _('Saved'));
+} catch (ImproperActionException | InvalidCsrfTokenException $e) {
+    // show message to user
+    $App->Session->getFlashBag()->add('ko', $e->getMessage());
+} catch (IllegalActionException $e) {
+    $App->Log->notice('', array(array('userid' => $App->Session->get('userid')), array('IllegalAction', $e)));
+    $App->Session->getFlashBag()->add('ko', Tools::error(true));
+} catch (DatabaseErrorException | FilesystemErrorException $e) {
+    $App->Log->error('', array(array('userid' => $App->Session->get('userid')), array('Error', $e)));
+    $App->Session->getFlashBag()->add('ko', $e->getMessage());
 } catch (Exception $e) {
-    $App->Log->error('', array(array('userid' => $App->Session->get('userid')), array('exception' => $e)));
-    $Session->getFlashBag()->add('ko', Tools::error());
-
+    $App->Log->error('', array(array('userid' => $App->Session->get('userid')), array('Exception' => $e)));
+    $App->Session->getFlashBag()->add('ko', Tools::error());
 } finally {
-    if ($redirect) {
-        header("Location: $location");
-    }
+    $Response->send();
 }

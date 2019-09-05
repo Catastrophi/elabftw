@@ -1,7 +1,5 @@
 <?php
 /**
- * \Elabftw\Elabftw\Revisions
- *
  * @author Nicolas CARPi <nicolas.carpi@curie.fr>
  * @copyright 2012 Nicolas CARPi
  * @see https://www.elabftw.net Official website
@@ -10,9 +8,12 @@
  */
 declare(strict_types=1);
 
-namespace Elabftw\Elabftw;
+namespace Elabftw\Models;
 
-use Exception;
+use Elabftw\Elabftw\Db;
+use Elabftw\Exceptions\DatabaseErrorException;
+use Elabftw\Exceptions\ImproperActionException;
+use Elabftw\Interfaces\CrudInterface;
 use PDO;
 
 /**
@@ -20,14 +21,14 @@ use PDO;
  */
 class Revisions implements CrudInterface
 {
+    /** @var int MIN_DELTA the min number of characters different between two versions to trigger save */
+    private const MIN_DELTA = 20;
+
     /** @var Db $Db SQL Database */
     private $Db;
 
     /** @var AbstractEntity $Entity an instance of Experiments or Database */
     private $Entity;
-
-    /** @var int MIN_DELTA the min number of characters different between two versions to trigger save */
-    private const MIN_DELTA = 20;
 
     /**
      * Constructor
@@ -44,23 +45,24 @@ class Revisions implements CrudInterface
      * Add a revision if the changeset is big enough
      *
      * @param string $body
-     * @return bool
+     * @return void
      */
-    public function create(string $body): bool
+    public function create(string $body): void
     {
         // only save a revision if there is at least MIN_DELTA characters difference between the old version and the new one
-        if (abs(\mb_strlen($this->Entity->entityData['body'] ?? "") - \mb_strlen($body)) > self::MIN_DELTA) {
-            $sql = "INSERT INTO " . $this->Entity->type . "_revisions (item_id, body, userid)
-                VALUES(:item_id, :body, :userid)";
+        if (abs(\mb_strlen($this->Entity->entityData['body'] ?? '') - \mb_strlen($body)) > self::MIN_DELTA) {
+            $sql = 'INSERT INTO ' . $this->Entity->type . '_revisions (item_id, body, userid)
+                VALUES(:item_id, :body, :userid)';
 
             $req = $this->Db->prepare($sql);
             $req->bindParam(':item_id', $this->Entity->id, PDO::PARAM_INT);
             $req->bindParam(':body', $body);
-            $req->bindParam(':userid', $this->Entity->Users->userid, PDO::PARAM_INT);
+            $req->bindParam(':userid', $this->Entity->Users->userData['userid'], PDO::PARAM_INT);
 
-            return $req->execute();
+            if ($req->execute() !== true) {
+                throw new DatabaseErrorException('Error while executing SQL query.');
+            }
         }
-        return true;
     }
 
     /**
@@ -70,11 +72,13 @@ class Revisions implements CrudInterface
      */
     public function readCount(): int
     {
-        $sql = "SELECT COUNT(*) FROM " . $this->Entity->type . "_revisions
-             WHERE item_id = :item_id";
+        $sql = 'SELECT COUNT(*) FROM ' . $this->Entity->type . '_revisions
+             WHERE item_id = :item_id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':item_id', $this->Entity->id, PDO::PARAM_INT);
-        $req->execute();
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
 
         return (int) $req->fetchColumn();
     }
@@ -86,13 +90,58 @@ class Revisions implements CrudInterface
      */
     public function readAll(): array
     {
-        $sql = "SELECT * FROM " . $this->Entity->type . "_revisions
-            WHERE item_id = :item_id ORDER BY savedate DESC";
+        $sql = 'SELECT ' . $this->Entity->type . "_revisions.*,
+            CONCAT(users.firstname, ' ', users.lastname) AS fullname
+            FROM " . $this->Entity->type . '_revisions
+            LEFT JOIN users ON (users.userid = ' . $this->Entity->type . '_revisions.userid)
+            WHERE item_id = :item_id ORDER BY savedate DESC';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':item_id', $this->Entity->id, PDO::PARAM_INT);
-        $req->execute();
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
 
-        return $req->fetchAll();
+        $res = $req->fetchAll();
+        if ($res === false) {
+            return array();
+        }
+        return $res;
+    }
+
+    /**
+     * Restore a revision
+     *
+     * @param int $revId The id of the revision we want to restore
+     * @return void
+     */
+    public function restore(int $revId): void
+    {
+        // check for lock
+        if ($this->isLocked()) {
+            throw new ImproperActionException(_('You cannot restore a revision of a locked item!'));
+        }
+
+        $body = $this->readRev($revId);
+
+        $sql = 'UPDATE ' . $this->Entity->type . ' SET body = :body WHERE id = :id';
+        $req = $this->Db->prepare($sql);
+        $req->bindParam(':body', $body);
+        $req->bindParam(':id', $this->Entity->id, PDO::PARAM_INT);
+
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
+    }
+
+    /**
+     * Not implemented
+     *
+     * @param int $id
+     * @return void
+     */
+    public function destroy(int $id): void
+    {
+        return;
     }
 
     /**
@@ -103,72 +152,35 @@ class Revisions implements CrudInterface
      */
     private function readRev(int $revId)
     {
-        $sql = "SELECT body FROM " . $this->Entity->type . "_revisions WHERE id = :rev_id";
+        $sql = 'SELECT body FROM ' . $this->Entity->type . '_revisions WHERE id = :rev_id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':rev_id', $revId, PDO::PARAM_INT);
-        $req->execute();
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
 
-        return $req->fetchColumn();
+        $res = $req->fetchColumn();
+        if ($res === false || $res === null) {
+            return '';
+        }
+        return $res;
     }
 
     /**
      * Check if item is locked before restoring it
      *
-     * @throws Exception
      * @return bool
      */
     private function isLocked(): bool
     {
-        $sql = "SELECT locked FROM " . $this->Entity->type . " WHERE id = :id";
+        $sql = 'SELECT locked FROM ' . $this->Entity->type . ' WHERE id = :id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':id', $this->Entity->id, PDO::PARAM_INT);
-        $req->execute();
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
         $locked = $req->fetch();
 
         return $locked['locked'] == 1;
-    }
-
-    /**
-     * Restore a revision
-     *
-     * @param int $revId The id of the revision we want to restore
-     * @throws Exception
-     * @return bool
-     */
-    public function restore(int $revId): bool
-    {
-        // check for lock
-        if ($this->isLocked()) {
-            throw new Exception(_('You cannot restore a revision of a locked item!'));
-        }
-
-        $body = $this->readRev($revId);
-
-        $sql = "UPDATE " . $this->Entity->type . " SET body = :body WHERE id = :id";
-        $req = $this->Db->prepare($sql);
-        $req->bindParam(':body', $body);
-        $req->bindParam(':id', $this->Entity->id, PDO::PARAM_INT);
-
-        return $req->execute();
-    }
-
-    /**
-     * Not implemented
-     *
-     * @param int $id
-     * @return bool
-     */
-    public function destroy(int $id): bool
-    {
-        return false;
-    }
-
-    /**
-     * Not implemented
-     *
-     */
-    public function destroyAll(): bool
-    {
-        return false;
     }
 }

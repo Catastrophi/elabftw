@@ -1,7 +1,5 @@
 <?php
 /**
- * \Elabftw\Elabftw\Steps
- *
  * @author Nicolas CARPi <nicolas.carpi@curie.fr>
  * @copyright 2012 Nicolas CARPi
  * @see https://www.elabftw.net Official website
@@ -10,102 +8,148 @@
  */
 declare(strict_types=1);
 
-namespace Elabftw\Elabftw;
+namespace Elabftw\Models;
 
+use Elabftw\Elabftw\Db;
+use Elabftw\Exceptions\DatabaseErrorException;
+use Elabftw\Interfaces\CrudInterface;
 use PDO;
 
 /**
- * All about the experiments steps
+ * All about the steps
  */
 class Steps implements CrudInterface
 {
+    /** @var AbstractEntity $Entity instance of Experiments, Templates or Database */
+    public $Entity;
+
     /** @var Db $Db SQL Database */
     protected $Db;
-
-    /** instance of Experiments */
-    public $Experiments;
 
     /**
      * Constructor
      *
-     * @param Experiments $experiments
+     * @param AbstractEntity $entity
      */
-    public function __construct(Experiments $experiments)
+    public function __construct(AbstractEntity $entity)
     {
         $this->Db = Db::getConnection();
-        $this->Experiments = $experiments;
+        $this->Entity = $entity;
     }
 
     /**
-     * Add a step to an experiment
+     * Add a step
      *
      * @param string $body the text for the step
-     * @return bool
+     * @return void
      */
-    public function create(string $body): bool
+    public function create(string $body): void
     {
+        $this->Entity->canOrExplode('write');
+
         // remove any | as they are used in the group_concat
         $body = str_replace('|', ' ', $body);
-        $sql = "INSERT INTO experiments_steps (item_id, body) VALUES(:item_id, :body)";
+        $sql = 'INSERT INTO ' . $this->Entity->type . '_steps (item_id, body) VALUES(:item_id, :body)';
         $req = $this->Db->prepare($sql);
-        $req->bindParam(':item_id', $this->Experiments->id, PDO::PARAM_INT);
+        $req->bindParam(':item_id', $this->Entity->id, PDO::PARAM_INT);
         $req->bindParam(':body', $body);
 
-        return $req->execute();
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
     }
 
     /**
      * Toggle the finished column of a step
      *
      * @param int $stepid
-     * @return bool
+     * @return void
      */
-    public function finish(int $stepid): bool
+    public function finish(int $stepid): void
     {
-        $sql = "UPDATE experiments_steps SET finished = !finished,
+        $this->Entity->canOrExplode('write');
+
+        $sql = 'UPDATE ' . $this->Entity->type . '_steps SET finished = !finished,
             finished_time = NOW()
-            WHERE id = :id";
+            WHERE id = :id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':id', $stepid, PDO::PARAM_INT);
 
-        return $req->execute();
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
     }
 
     /**
-     * Get steps for an experiments
+     * Get steps for an entity
      *
      * @return array
      */
     public function readAll(): array
     {
-        $sql = "SELECT * FROM experiments_steps WHERE item_id = :id";
+        $sql = 'SELECT * FROM ' . $this->Entity->type . '_steps WHERE item_id = :id';
         $req = $this->Db->prepare($sql);
-        $req->bindParam(':id', $this->Experiments->id, PDO::PARAM_INT);
-        $req->execute();
+        $req->bindParam(':id', $this->Entity->id, PDO::PARAM_INT);
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
 
-        return $req->fetchAll();
+        $res = $req->fetchAll();
+        if ($res === false) {
+            return array();
+        }
+        return $res;
     }
 
     /**
-     * Copy the steps from one experiment to an other.
+     * Get steps from an id
      *
-     * @param int $id The id of the original experiment
-     * @param int $newId The id of the new experiment that will receive the steps
+     * @param int $id
+     * @return array
+     */
+    public function readFromId(int $id): array
+    {
+        $sql = 'SELECT * FROM ' . $this->Entity->type . '_steps WHERE item_id = :id';
+        $req = $this->Db->prepare($sql);
+        $req->bindParam(':id', $id, PDO::PARAM_INT);
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
+
+        $res = $req->fetchAll();
+        if ($res === false) {
+            return array();
+        }
+        return $res;
+    }
+
+    /**
+     * Copy the steps from one entity to an other
+     *
+     * @param int $id The id of the original entity
+     * @param int $newId The id of the new entity that will receive the steps
+     * @param bool $fromTpl do we duplicate from template?
      * @return void
      */
-    public function duplicate(int $id, int $newId): void
+    public function duplicate(int $id, int $newId, $fromTpl = false): void
     {
-        $stepsql = "SELECT body FROM experiments_steps WHERE item_id = :id";
+        $table = $this->Entity->type;
+        if ($fromTpl) {
+            $table = 'experiments_templates';
+        }
+        $stepsql = 'SELECT body FROM ' . $table . '_steps WHERE item_id = :id';
         $stepreq = $this->Db->prepare($stepsql);
         $stepreq->bindParam(':id', $id, PDO::PARAM_INT);
-        $stepreq->execute();
+        if ($stepreq->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
 
         while ($steps = $stepreq->fetch()) {
-            $sql = "INSERT INTO experiments_steps (item_id, body) VALUES(:item_id, :body)";
+            $sql = 'INSERT INTO ' . $this->Entity->type . '_steps (item_id, body) VALUES(:item_id, :body)';
             $req = $this->Db->prepare($sql);
             $req->execute(array(
                 'item_id' => $newId,
-                'body' => $steps['body']
+                'body' => $steps['body'],
             ));
         }
     }
@@ -114,28 +158,18 @@ class Steps implements CrudInterface
      * Delete a step
      *
      * @param int $id ID of the step
-     * @return bool
+     * @return void
      */
-    public function destroy(int $id): bool
+    public function destroy(int $id): void
     {
-        $sql = "DELETE FROM experiments_steps WHERE id= :id";
+        $this->Entity->canOrExplode('write');
+
+        $sql = 'DELETE FROM ' . $this->Entity->type . '_steps WHERE id= :id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':id', $id, PDO::PARAM_INT);
 
-        return $req->execute();
-    }
-
-    /**
-     * Delete all the steps for an experiment
-     *
-     * @return bool
-     */
-    public function destroyAll(): bool
-    {
-        $sql = "DELETE FROM experiments_steps WHERE item_id = :item_id";
-        $req = $this->Db->prepare($sql);
-        $req->bindParam(':item_id', $this->Experiments->id, PDO::PARAM_INT);
-
-        return $req->execute();
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
     }
 }

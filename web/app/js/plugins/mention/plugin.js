@@ -23,7 +23,7 @@
     } else {
       g = this;
     }
-    
+
     f(g.jQuery);
   }
 
@@ -37,7 +37,7 @@
             source: [],
             delay: 500,
             queryBy: 'name',
-            items: 25
+            items: 10
         }, options);
 
         this.matcher = this.options.matcher || this.matcher;
@@ -404,5 +404,5 @@
     });
 
     tinymce.PluginManager.add('mention', tinymce.plugins.Mention);
-  
+
 });

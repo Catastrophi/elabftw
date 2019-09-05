@@ -1,4 +1,4 @@
-<?php
+<?php declare(strict_types=1);
 /**
  * install/install.php
  *
@@ -10,17 +10,20 @@
  */
 
 /**
- * This file reads infos from POST and creates the config.php file (unless it exists)
+ * This file reads info from POST and creates the config.php file (unless it exists)
  *
  */
+
 namespace Elabftw\Elabftw;
 
-use Exception;
 use Defuse\Crypto\Key;
+use Elabftw\Exceptions\IllegalActionException;
+use Elabftw\Exceptions\ImproperActionException;
+use Exception;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Session\Session;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
+use Symfony\Component\HttpFoundation\Session\Session;
 
 require_once \dirname(__DIR__, 2) . '/vendor/autoload.php';
 $configFilePath = \dirname(__DIR__, 2) . '/config.php';
@@ -40,26 +43,26 @@ try {
     // Check if there is already a config file, redirect to index if yes.
     if (file_exists($configFilePath)) {
         header('Location: ../install/index.php');
-        throw new Exception('Redirecting to install page');
+        throw new ImproperActionException('Redirecting to install page');
     }
 
     // POST data
     if (isset($_POST['db_host']) && !empty($_POST['db_host'])) {
         $db_host = $_POST['db_host'];
     } else {
-        throw new Exception('Bad POST data');
+        throw new IllegalActionException('Bad POST data');
     }
 
     if (isset($_POST['db_name']) && !empty($_POST['db_name'])) {
         $db_name = $_POST['db_name'];
     } else {
-        throw new Exception('Bad POST data');
+        throw new IllegalActionException('Bad POST data');
     }
 
     if (isset($_POST['db_user']) && !empty($_POST['db_user'])) {
         $db_user = $_POST['db_user'];
     } else {
-        throw new Exception('Bad POST data');
+        throw new IllegalActionException('Bad POST data');
     }
 
     // the db pass can be empty on mac and windows install
@@ -90,9 +93,8 @@ try {
         $msg = 'Congratulations, you successfully installed eLabFTW, 
         now you need to <strong>register</strong> your account (you will have full admin rights).';
         $Session->getFlashBag()->add('ok', $msg);
-        // redirect to install/index.php to import SQL structure
+        // redirect to install/index.php to import SQL structure
         header('Location: index.php');
-
     } else {
         // send the file
         $Response = new Response($config);
@@ -105,6 +107,8 @@ try {
         $Response->headers->set('Content-Disposition', $disposition);
         $Response->send();
     }
-} catch (Exception $e) {
+
+    // just show everything here
+} catch (IllegalActionException | ImproperActionException | Exception $e) {
     echo Tools::displayMessage('Error: ' . $e->getMessage(), 'ko', false);
 }

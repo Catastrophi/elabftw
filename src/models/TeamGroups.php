@@ -1,7 +1,5 @@
 <?php
 /**
- * \Elabftw\Elabftw\TeamGroups
- *
  * @package   Elabftw\Elabftw
  * @author    Nicolas CARPi <nicolas.carpi@curie.fr>
  * @copyright 2012 Nicolas CARPi
@@ -10,9 +8,14 @@
  */
 declare(strict_types=1);
 
-namespace Elabftw\Elabftw;
+namespace Elabftw\Models;
 
-use Exception;
+use Elabftw\Elabftw\Db;
+use Elabftw\Exceptions\DatabaseErrorException;
+use Elabftw\Exceptions\IllegalActionException;
+use Elabftw\Exceptions\ImproperActionException;
+use Elabftw\Interfaces\CrudInterface;
+use Elabftw\Services\Check;
 use PDO;
 
 /**
@@ -41,16 +44,22 @@ class TeamGroups implements CrudInterface
      * Create a team group
      *
      * @param string $name Name of the group
-     * @return bool true if sql is successful
+     * @return void
      */
-    public function create(string $name): bool
+    public function create(string $name): void
     {
-        $sql = "INSERT INTO team_groups(name, team) VALUES(:name, :team)";
+        $name = filter_var($name, FILTER_SANITIZE_STRING);
+        if ($name === false || \mb_strlen($name) < 2) {
+            throw new ImproperActionException(sprintf(_('Input is too short! (minimum: %d)'), 2));
+        }
+        $sql = 'INSERT INTO team_groups(name, team) VALUES(:name, :team)';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':name', $name);
         $req->bindParam(':team', $this->Users->userData['team'], PDO::PARAM_INT);
 
-        return $req->execute();
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
     }
 
     /**
@@ -62,12 +71,17 @@ class TeamGroups implements CrudInterface
     {
         $fullGroups = array();
 
-        $sql = "SELECT id, name FROM team_groups WHERE team = :team";
+        $sql = 'SELECT id, name FROM team_groups WHERE team = :team';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':team', $this->Users->userData['team'], PDO::PARAM_INT);
-        $req->execute();
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
 
         $groups = $req->fetchAll();
+        if ($groups === false) {
+            return $fullGroups;
+        }
 
         $sql = "SELECT DISTINCT CONCAT(users.firstname, ' ', users.lastname) AS fullname
             FROM users CROSS JOIN users2team_groups
@@ -76,12 +90,14 @@ class TeamGroups implements CrudInterface
 
         foreach ($groups as $group) {
             $req->bindParam(':groupid', $group['id'], PDO::PARAM_INT);
-            $req->execute();
+            if ($req->execute() !== true) {
+                throw new DatabaseErrorException('Error while executing SQL query.');
+            }
             $usersInGroup = $req->fetchAll();
             $fullGroups[] = array(
                 'id' => $group['id'],
                 'name' => $group['name'],
-                'users' => $usersInGroup
+                'users' => $usersInGroup,
             );
         }
 
@@ -98,6 +114,12 @@ class TeamGroups implements CrudInterface
         $idArr = array();
         $nameArr = array();
 
+        $visibilityArr = array(
+            'public' => _('Public'),
+            'organization' => _('Everyone with an account'),
+            'team' => _('Only the team'),
+            'user' => _('Only me'),
+        );
         $groups = $this->readAll();
 
         foreach ($groups as $group) {
@@ -109,16 +131,12 @@ class TeamGroups implements CrudInterface
                 }
             }
         }
+
         $tgArr = array_combine($idArr, $nameArr);
+        if ($tgArr === false) {
+            return $visibilityArr;
+        }
 
-        $visibilityArr = array(
-            'public' => 'Public',
-            'organization' => 'Everyone with an account',
-            'team' => 'Only the team',
-            'user' => 'Only me'
-        );
-
-        /** @noinspection AdditionOperationOnArraysInspection */
         return $visibilityArr + $tgArr;
     }
 
@@ -130,11 +148,17 @@ class TeamGroups implements CrudInterface
      */
     public function readName(int $id): string
     {
-        $sql = "SELECT name FROM team_groups WHERE id = :id";
+        $sql = 'SELECT name FROM team_groups WHERE id = :id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':id', $id, PDO::PARAM_INT);
-        $req->execute();
-        return $req->fetchColumn();
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
+        $res = $req->fetchColumn();
+        if ($res === false || $res === null) {
+            return '';
+        }
+        return $res;
     }
 
     /**
@@ -143,83 +167,84 @@ class TeamGroups implements CrudInterface
      *
      * @param string $name Name of the group
      * @param string $id teamgroup_1
-     * @throws Exception
-     * @return string|null $name Name of the group if success
+     * @return string $name Name of the group if success
      */
-    public function update(string $name, string $id): ?string
+    public function update(string $name, string $id): string
     {
         $idArr = explode('_', $id);
-        if ($idArr[0] === 'teamgroup' && Tools::checkId((int) $idArr[1]) !== false) {
-            $sql = "UPDATE team_groups SET name = :name WHERE id = :id AND team = :team";
-            $req = $this->Db->prepare($sql);
-            $req->bindParam(':name', $name);
-            $req->bindParam(':team', $this->Users->userData['team'], PDO::PARAM_INT);
-            $req->bindParam(':id', $idArr[1], PDO::PARAM_INT);
-
-            if ($req->execute()) {
-                // the group name is returned so it gets back into jeditable input field
-                return $name;
-            }
+        if (Check::id((int) $idArr[1]) === false) {
+            throw new IllegalActionException('Bad id');
         }
-        throw new Exception('Cannot update team group!');
+        $sql = 'UPDATE team_groups SET name = :name WHERE id = :id AND team = :team';
+        $req = $this->Db->prepare($sql);
+        $req->bindParam(':name', $name);
+        $req->bindParam(':team', $this->Users->userData['team'], PDO::PARAM_INT);
+        $req->bindParam(':id', $idArr[1], PDO::PARAM_INT);
+
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
+        // the group name is returned so it gets back into jeditable input field
+        return $name;
     }
 
     /**
      * Add or remove a member from a team group
      *
-     * @param int $userId Id of the user
-     * @param int $groupId Id of the group
+     * @param int $userid Id of the user
+     * @param int $groupid Id of the group
      * @param string $action Can be 'add' or 'rm'
-     * @throws Exception if the action keyword is wrong
-     * @return bool true if success
+     * @throws IllegalActionException if the action keyword is wrong
+     * @return void
      */
-    public function updateMember(int $userId, int $groupId, string $action): bool
+    public function updateMember(int $userid, int $groupid, string $action): void
     {
         if ($action === 'add') {
-            $sql = "INSERT INTO users2team_groups(userid, groupid) VALUES(:userid, :groupid)";
+            $sql = 'INSERT INTO users2team_groups(userid, groupid) VALUES(:userid, :groupid)';
         } elseif ($action === 'rm') {
-            $sql = "DELETE FROM users2team_groups WHERE userid = :userid AND groupid = :groupid";
+            $sql = 'DELETE FROM users2team_groups WHERE userid = :userid AND groupid = :groupid';
         } else {
-            throw new Exception('Bad action keyword');
+            throw new IllegalActionException('Bad action keyword');
         }
         $req = $this->Db->prepare($sql);
-        $req->bindParam(':userid', $userId, PDO::PARAM_INT);
-        $req->bindParam(':groupid', $groupId, PDO::PARAM_INT);
+        $req->bindParam(':userid', $userid, PDO::PARAM_INT);
+        $req->bindParam(':groupid', $groupid, PDO::PARAM_INT);
 
-        return $req->execute();
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
     }
 
     /**
      * Delete a team group
      *
      * @param int $id Id of the group to destroy
-     * @throws Exception if it fails to delete
-     * @return bool true on success
+     * @return void
      */
-    public function destroy(int $id): bool
+    public function destroy(int $id): void
     {
-        $success = array();
-
-        $sql = "UPDATE experiments SET visibility = 'team' WHERE visibility = ':id'";
+        $sql = "UPDATE experiments SET visibility = 'team' WHERE visibility = :id AND team = :team";
         $req = $this->Db->prepare($sql);
-        $req->bindParam(':id', $id, PDO::PARAM_INT);
-        $success[] = $req->execute();
-
-        $sql = "DELETE FROM team_groups WHERE id = :id";
-        $req = $this->Db->prepare($sql);
-        $req->bindParam(':id', $id, PDO::PARAM_INT);
-        $success[] = $req->execute();
-
-        $sql = "DELETE FROM users2team_groups WHERE groupid = :id";
-        $req = $this->Db->prepare($sql);
-        $req->bindParam(':id', $id, PDO::PARAM_INT);
-        $success[] = $req->execute();
-
-        if (\in_array(false, $success, true)) {
-            throw new Exception('Error removing group');
+        // note: setting PDO::PARAM_INT here will throw error because it can also be string value!
+        $req->bindParam(':id', $id);
+        $req->bindParam(':team', $this->Users->userData['team'], PDO::PARAM_INT);
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
         }
 
-        return true;
+        $sql = 'DELETE FROM team_groups WHERE id = :id';
+        $req = $this->Db->prepare($sql);
+        $req->bindParam(':id', $id, PDO::PARAM_INT);
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
+
+        $sql = 'DELETE FROM users2team_groups WHERE groupid = :id';
+        $req = $this->Db->prepare($sql);
+        $req->bindParam(':id', $id, PDO::PARAM_INT);
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
     }
 
     /**
@@ -231,7 +256,7 @@ class TeamGroups implements CrudInterface
      */
     public function isInTeamGroup(int $userid, int $groupid): bool
     {
-        $sql = "SELECT DISTINCT userid FROM users2team_groups WHERE groupid = :groupid";
+        $sql = 'SELECT DISTINCT userid FROM users2team_groups WHERE groupid = :groupid';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':groupid', $groupid, PDO::PARAM_INT);
         $req->execute();
@@ -244,11 +269,24 @@ class TeamGroups implements CrudInterface
     }
 
     /**
-     * Not implemented
+     * Check if both users are in the same group
      *
+     * @param int $userid the other user
+     * @return bool
      */
-    public function destroyAll(): bool
+    public function isUserInSameGroup(int $userid): bool
     {
+        $sql = 'SELECT t1.groupid FROM users2team_groups AS t1
+            INNER JOIN users2team_groups AS t2
+            WHERE t1.userid = :userid AND t2.userid = :userid2';
+        $req = $this->Db->prepare($sql);
+        $req->bindParam(':userid', $this->Users->userData['userid'], PDO::PARAM_INT);
+        $req->bindParam(':userid2', $userid, PDO::PARAM_INT);
+        $req->execute();
+        $req->fetch();
+        if ($req->rowCount() > 0) {
+            return true;
+        }
         return false;
     }
 }

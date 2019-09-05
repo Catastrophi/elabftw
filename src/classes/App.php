@@ -1,7 +1,5 @@
 <?php
 /**
- * \Elabftw\Elabftw\App
- *
  * @package   Elabftw\Elabftw
  * @author    Nicolas CARPi <nicolas.carpi@curie.fr>
  * @copyright 2012 Nicolas CARPi
@@ -12,9 +10,15 @@ declare(strict_types=1);
 
 namespace Elabftw\Elabftw;
 
-use Monolog\Logger;
+use Elabftw\Models\Config;
+use Elabftw\Models\Teams;
+use Elabftw\Models\Todolist;
+use Elabftw\Models\Users;
+use Elabftw\Services\Check;
+use Elabftw\Traits\TwigTrait;
+use Elabftw\Traits\UploadTrait;
 use Monolog\Handler\ErrorLogHandler;
-use RuntimeException;
+use Monolog\Logger;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Session\Session;
 
@@ -23,6 +27,9 @@ use Symfony\Component\HttpFoundation\Session\Session;
  */
 class App
 {
+    use UploadTrait;
+    use TwigTrait;
+
     /** @var Request $Request the request */
     public $Request;
 
@@ -35,23 +42,26 @@ class App
     /** @var Logger $Log instance of Logger */
     public $Log;
 
+    /** @var Csrf $Csrf instance of Csrf */
+    public $Csrf;
+
     /** @var Users $Users instance of Users */
     public $Users;
 
     /** @var Db $Db SQL Database */
     public $Db;
 
-    /** @var \Twig_Environment $Twig instance of Twig */
-    public $Twig;
-
     /** @var string $pageTitle the title for the current page */
     public $pageTitle = 'Lab manager';
 
     /** @var array $ok the ok messages from flashBag */
-    public $ok;
+    public $ok = array();
 
     /** @var array $ko the ko messages from flashBag */
-    public $ko;
+    public $ko = array();
+
+    /** @var array $warning the warning messages from flashBag */
+    public $warning = array();
 
     /** @var array $todoItems items on the todolist, populated if logged in */
     public $todoItems = array();
@@ -62,74 +72,26 @@ class App
     /**
      * Constructor
      *
-     * @param Session $session
      * @param Request $request
-     * @param Config $config
-     * @param Logger $log
      */
-    public function __construct(
-        Session $session,
-        Request $request,
-        Config $config,
-        Logger $log
-    ) {
+    public function __construct(Request $request, Session $session, Config $config, Logger $log, Csrf $csrf)
+    {
         $this->Request = $request;
+        $this->Session = $session;
+        $this->ok = $this->Session->getFlashBag()->get('ok');
+        $this->ko = $this->Session->getFlashBag()->get('ko');
+        $this->warning = $this->Session->getFlashBag()->get('warning');
+
         $this->Config = $config;
         $this->Log = $log;
         $this->Log->pushHandler(new ErrorLogHandler());
-        $this->Users = new Users(null, new Auth($request, $session), new Config());
+        $this->Csrf = $csrf;
 
+        $this->Users = new Users();
         $this->Db = Db::getConnection();
-        $this->Session = $session;
-        $this->Twig = $this->getTwig();
-
-        $this->ok = $this->Session->getFlashBag()->get('ok', array());
-        $this->ko = $this->Session->getFlashBag()->get('ko', array());
-    }
-
-    /**
-     * Prepare the Twig object
-     *
-     * @return \Twig_Environment
-     */
-    private function getTwig(): \Twig_Environment
-    {
-        $elabRoot = \dirname(__DIR__, 2);
-        $loader = new \Twig_Loader_Filesystem("$elabRoot/src/templates");
-        $cache = "$elabRoot/cache/twig";
-        if (!is_dir($cache) && !mkdir($cache, 0700) && !is_dir($cache)) {
-            throw new RuntimeException("Unable to create the cache directory ($cache)");
-        }
-        $options = array();
-
-        // enable cache if not in debug (dev) mode
-        if (!$this->Config->configArr['debug']) {
-            $options = array('cache' => $cache);
-        }
-        $TwigEnvironment = new \Twig_Environment($loader, $options);
-
-        // custom twig filters
-        $filterOptions = array('is_safe' => array('html'));
-        $msgFilter = new \Twig_SimpleFilter('msg', '\Elabftw\Elabftw\Tools::displayMessage', $filterOptions);
-        $dateFilter = new \Twig_SimpleFilter('kdate', '\Elabftw\Elabftw\Tools::formatDate', $filterOptions);
-        $mdFilter = new \Twig_SimpleFilter('md2html', '\Elabftw\Elabftw\Tools::md2html', $filterOptions);
-        $starsFilter = new \Twig_SimpleFilter('stars', '\Elabftw\Elabftw\Tools::showStars', $filterOptions);
-        $bytesFilter = new \Twig_SimpleFilter('formatBytes', '\Elabftw\Elabftw\Tools::formatBytes', $filterOptions);
-
-        $TwigEnvironment->addFilter($msgFilter);
-        $TwigEnvironment->addFilter($dateFilter);
-        $TwigEnvironment->addFilter($mdFilter);
-        $TwigEnvironment->addFilter($starsFilter);
-        $TwigEnvironment->addFilter($bytesFilter);
-
-        // i18n for twig
-        $TwigEnvironment->addExtension(new \Twig_Extensions_Extension_I18n());
-
-        // add the version as a global var so we can have it for the ?v=x.x.x for js files
-        $ReleaseCheck = new ReleaseCheck($this->Config);
-        $TwigEnvironment->addGlobal('v', $ReleaseCheck::INSTALLED_VERSION);
-
-        return $TwigEnvironment;
+        // UPDATE SQL SCHEMA if necessary or show error message if version mismatch
+        $Update = new Update($this->Config, new Sql());
+        $Update->checkSchema();
     }
 
     /**
@@ -150,6 +112,16 @@ class App
     public function getMemoryUsage(): int
     {
         return memory_get_usage();
+    }
+
+    /**
+     * Get the mininum password length for injecting in templates
+     *
+     * @return int
+     */
+    public function getMinPasswordLength(): int
+    {
+        return Check::MIN_PASSWORD_LENGTH;
     }
 
     /**
@@ -179,7 +151,7 @@ class App
     public function getLangForHtmlAttribute(): string
     {
         $lang = 'en';
-        if ($this->Users->userid) {
+        if (isset($this->Users->userData['lang'])) {
             $lang = \substr($this->Users->userData['lang'], 0, 2);
         }
 
@@ -195,6 +167,6 @@ class App
      */
     public function render(string $template, array $variables): string
     {
-        return $this->Twig->render($template, array_merge(array('App' => $this), $variables));
+        return $this->getTwig($this->Config)->render($template, array_merge(array('App' => $this), $variables));
     }
 }

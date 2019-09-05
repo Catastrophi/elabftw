@@ -1,7 +1,5 @@
 <?php
 /**
- * \Elabftw\Elabftw\Links
- *
  * @author Nicolas CARPi <nicolas.carpi@curie.fr>
  * @copyright 2012 Nicolas CARPi
  * @see https://www.elabftw.net Official website
@@ -10,8 +8,11 @@
  */
 declare(strict_types=1);
 
-namespace Elabftw\Elabftw;
+namespace Elabftw\Models;
 
+use Elabftw\Elabftw\Db;
+use Elabftw\Exceptions\DatabaseErrorException;
+use Elabftw\Interfaces\CrudInterface;
 use PDO;
 
 /**
@@ -19,18 +20,18 @@ use PDO;
  */
 class Links implements CrudInterface
 {
+    /** @var AbstractEntity $Entity instance of Experiments */
+    public $Entity;
+
     /** @var Db $Db SQL Database */
     protected $Db;
-
-    /** @var Experiments $Entity instance of Experiments */
-    public $Entity;
 
     /**
      * Constructor
      *
-     * @param Experiments $entity
+     * @param AbstractEntity $entity
      */
-    public function __construct(Experiments $entity)
+    public function __construct(AbstractEntity $entity)
     {
         $this->Db = Db::getConnection();
         $this->Entity = $entity;
@@ -40,65 +41,112 @@ class Links implements CrudInterface
      * Add a link to an experiment
      *
      * @param int $link ID of database item
-     * @return bool
+     * @return void
      */
-    public function create(int $link): bool
+    public function create(int $link): void
     {
         $Database = new Database($this->Entity->Users, $link);
         $Database->canOrExplode('read');
+        $this->Entity->canOrExplode('write');
 
-        $sql = 'INSERT INTO experiments_links (item_id, link_id) VALUES(:item_id, :link_id)';
+        $sql = 'INSERT INTO ' . $this->Entity->type . '_links (item_id, link_id) VALUES(:item_id, :link_id)';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':item_id', $this->Entity->id, PDO::PARAM_INT);
         $req->bindParam(':link_id', $link, PDO::PARAM_INT);
 
-        return $req->execute();
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
     }
 
     /**
-     * Get links for an experiments
+     * Get links for an entity
      *
-     * @return array links of the experiments
+     * @return array links of the entity
      */
     public function readAll(): array
     {
-        $sql = "SELECT items.id AS itemid,
-            experiments_links.id AS linkid,
-            experiments_links.*,
-            items.*,
-            items_types.*
-            FROM experiments_links
-            LEFT JOIN items ON (experiments_links.link_id = items.id)
-            LEFT JOIN items_types ON (items.type = items_types.id)
-            WHERE experiments_links.item_id = :id";
+        $this->Entity->canOrExplode('read');
+
+        $sql = 'SELECT items.id AS itemid,
+            ' . $this->Entity->type . '_links.id AS linkid,
+            items.title,
+            items_types.name,
+            items_types.color
+            FROM ' . $this->Entity->type . '_links
+            LEFT JOIN items ON (' . $this->Entity->type . '_links.link_id = items.id)
+            LEFT JOIN items_types ON (items.category = items_types.id)
+            WHERE ' . $this->Entity->type . '_links.item_id = :id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':id', $this->Entity->id, PDO::PARAM_INT);
-        $req->execute();
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
 
-        return $req->fetchAll();
+        $res = $req->fetchAll();
+        if ($res === false) {
+            return array();
+        }
+        return $res;
     }
 
     /**
-     * Copy the links from one experiment to an other.
+     * Get links from an id
      *
-     * @param int $id The id of the original experiment
-     * @param int $newId The id of the new experiment that will receive the links
+     * @param int $id
+     * @return array
+     */
+    public function readFromId(int $id): array
+    {
+        $sql = 'SELECT items.id AS itemid,
+            ' . $this->Entity->type . '_links.id AS linkid,
+            items.title,
+            items_types.name,
+            items_types.color
+            FROM ' . $this->Entity->type . '_links
+            LEFT JOIN items ON (' . $this->Entity->type . '_links.link_id = items.id)
+            LEFT JOIN items_types ON (items.category = items_types.id)
+            WHERE ' . $this->Entity->type . '_links.item_id = :id';
+        $req = $this->Db->prepare($sql);
+        $req->bindParam(':id', $id, PDO::PARAM_INT);
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
+
+        $res = $req->fetchAll();
+        if ($res === false) {
+            return array();
+        }
+        return $res;
+    }
+
+    /**
+     * Copy the links from one entity to an other
+     *
+     * @param int $id The id of the original entity
+     * @param int $newId The id of the new entity that will receive the links
+     * @param bool $fromTpl do we duplicate from template?
      * @return void
      */
-    public function duplicate(int $id, int $newId): void
+    public function duplicate(int $id, int $newId, $fromTpl = false): void
     {
-        // LINKS
-        $linksql = "SELECT link_id FROM experiments_links WHERE item_id = :id";
+        $table = $this->Entity->type;
+        if ($fromTpl) {
+            $table = 'experiments_templates';
+        }
+        $linksql = 'SELECT link_id FROM ' . $table . '_links WHERE item_id = :id';
         $linkreq = $this->Db->prepare($linksql);
         $linkreq->bindParam(':id', $id, PDO::PARAM_INT);
-        $linkreq->execute();
+        if ($linkreq->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
 
         while ($links = $linkreq->fetch()) {
-            $sql = "INSERT INTO experiments_links (link_id, item_id) VALUES(:link_id, :item_id)";
+            $sql = 'INSERT INTO ' . $this->Entity->type . '_links (link_id, item_id) VALUES(:link_id, :item_id)';
             $req = $this->Db->prepare($sql);
             $req->execute(array(
                 'link_id' => $links['link_id'],
-                'item_id' => $newId
+                'item_id' => $newId,
             ));
         }
     }
@@ -107,28 +155,18 @@ class Links implements CrudInterface
      * Delete a link
      *
      * @param int $id ID of our link
-     * @return bool
+     * @return void
      */
-    public function destroy(int $id): bool
+    public function destroy(int $id): void
     {
-        $sql = "DELETE FROM experiments_links WHERE id= :id";
+        $this->Entity->canOrExplode('write');
+
+        $sql = 'DELETE FROM ' . $this->Entity->type . '_links WHERE id= :id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':id', $id, PDO::PARAM_INT);
 
-        return $req->execute();
-    }
-
-    /**
-     * Delete all the links for an experiment
-     *
-     * @return bool
-     */
-    public function destroyAll(): bool
-    {
-        $sql = "DELETE FROM experiments_links WHERE item_id = :item_id";
-        $req = $this->Db->prepare($sql);
-        $req->bindParam(':item_id', $this->Entity->id, PDO::PARAM_INT);
-
-        return $req->execute();
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
     }
 }

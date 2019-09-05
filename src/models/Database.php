@@ -1,7 +1,5 @@
 <?php
 /**
- * \Elabftw\Elabftw\Database
- *
  * @author Nicolas CARPi <nicolas.carpi@curie.fr>
  * @copyright 2012 Nicolas CARPi
  * @see https://www.elabftw.net Official website
@@ -10,18 +8,19 @@
  */
 declare(strict_types=1);
 
-namespace Elabftw\Elabftw;
+namespace Elabftw\Models;
 
-use Exception;
+use Elabftw\Exceptions\DatabaseErrorException;
+use Elabftw\Exceptions\IllegalActionException;
+use Elabftw\Interfaces\CreateInterface;
+use Elabftw\Services\Filter;
 use PDO;
 
 /**
  * All about the database items
  */
-class Database extends AbstractEntity
+class Database extends AbstractEntity implements CreateInterface
 {
-    use EntityTrait;
-
     /**
      * Constructor
      *
@@ -38,24 +37,24 @@ class Database extends AbstractEntity
     /**
      * Create an item
      *
-     * @param int $itemType What kind of item we want to create.
+     * @param int $category What kind of item we want to create.
      * @return int the new id of the item
      */
-    public function create(int $itemType): int
+    public function create(int $category): int
     {
-        $itemsTypes = new ItemsTypes($this->Users, $itemType);
+        $itemsTypes = new ItemsTypes($this->Users, $category);
 
         // SQL for create DB item
-        $sql = "INSERT INTO items(team, title, date, body, userid, type)
-            VALUES(:team, :title, :date, :body, :userid, :type)";
+        $sql = 'INSERT INTO items(team, title, date, body, userid, category)
+            VALUES(:team, :title, :date, :body, :userid, :category)';
         $req = $this->Db->prepare($sql);
         $req->execute(array(
             'team' => $this->Users->userData['team'],
             'title' => _('Untitled'),
-            'date' => Tools::kdate(),
+            'date' => Filter::kdate(),
             'body' => $itemsTypes->read(),
-            'userid' => $this->Users->userid,
-            'type' => $itemType
+            'userid' => $this->Users->userData['userid'],
+            'category' => $category,
         ));
 
         return $this->Db->lastInsertId();
@@ -65,34 +64,21 @@ class Database extends AbstractEntity
      * Update the rating of an item
      *
      * @param int $rating
-     * @return bool
+     * @return void
      */
-    public function updateRating(int $rating): bool
+    public function updateRating(int $rating): void
     {
+        $this->canOrExplode('write');
+
         $sql = 'UPDATE items SET rating = :rating WHERE id = :id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':rating', $rating, PDO::PARAM_INT);
         $req->bindParam(':id', $this->id, PDO::PARAM_INT);
 
-        return $req->execute();
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
     }
-
-    /**
-     * Update the item type
-     *
-     * @param int $category Id of the item type
-     * @return bool
-     */
-    public function updateCategory(int $category): bool
-    {
-        $sql = "UPDATE items SET type = :type WHERE id = :id AND locked = 0";
-        $req = $this->Db->prepare($sql);
-        $req->bindParam(':type', $category, PDO::PARAM_INT);
-        $req->bindParam(':id', $this->id, PDO::PARAM_INT);
-
-        return $req->execute();
-    }
-
 
     /**
      * Duplicate an item
@@ -101,19 +87,26 @@ class Database extends AbstractEntity
      */
     public function duplicate(): int
     {
-        $sql = "INSERT INTO items(team, title, date, body, userid, type)
-            VALUES(:team, :title, :date, :body, :userid, :type)";
+        $this->canOrExplode('read');
+
+        $sql = 'INSERT INTO items(team, title, date, body, userid, category)
+            VALUES(:team, :title, :date, :body, :userid, :category)';
         $req = $this->Db->prepare($sql);
         $req->execute(array(
             'team' => $this->Users->userData['team'],
             'title' => $this->entityData['title'],
-            'date' => Tools::kdate(),
+            'date' => Filter::kdate(),
             'body' => $this->entityData['body'],
-            'userid' => $this->Users->userid,
-            'type' => $this->entityData['category_id']
+            'userid' => $this->Users->userData['userid'],
+            'category' => $this->entityData['category_id'],
         ));
         $newId = $this->Db->lastInsertId();
 
+        if ($this->id === null) {
+            throw new IllegalActionException('Try to duplicate without an id.');
+        }
+        $this->Links->duplicate($this->id, $newId);
+        $this->Steps->duplicate($this->id, $newId);
         $this->Tags->copyTags($newId);
 
         return $newId;
@@ -122,71 +115,40 @@ class Database extends AbstractEntity
     /**
      * Destroy a DB item
      *
-     * @throws Exception
-     * @return bool
+     * @return void
      */
-    public function destroy(): bool
+    public function destroy(): void
     {
-        // to store the outcome of sql
-        $result = array();
+        $this->canOrExplode('write');
 
         // delete the database item
-        $sql = "DELETE FROM items WHERE id = :id";
+        $sql = 'DELETE FROM items WHERE id = :id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':id', $this->id, PDO::PARAM_INT);
-        $result[] = $req->execute();
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
 
-        $result[] = $this->Tags->destroyAll();
+        $this->Tags->destroyAll();
 
-        $result[] = $this->Uploads->destroyAll();
+        $this->Uploads->destroyAll();
 
         // delete links of this item in experiments with this item linked
         // get all experiments with that item linked
-        $sql = "SELECT id FROM experiments_links WHERE link_id = :link_id";
+        $sql = 'SELECT id FROM experiments_links WHERE link_id = :link_id';
         $req = $this->Db->prepare($sql);
         $req->bindParam(':link_id', $this->id, PDO::PARAM_INT);
-        $result[] = $req->execute();
+        if ($req->execute() !== true) {
+            throw new DatabaseErrorException('Error while executing SQL query.');
+        }
 
         while ($links = $req->fetch()) {
-            $delete_sql = "DELETE FROM experiments_links WHERE id = :links_id";
+            $delete_sql = 'DELETE FROM experiments_links WHERE id = :links_id';
             $delete_req = $this->Db->prepare($delete_sql);
             $delete_req->bindParam(':links_id', $links['id'], PDO::PARAM_INT);
-            $result[] = $delete_req->execute();
+            if ($delete_req->execute() !== true) {
+                throw new DatabaseErrorException('Error while executing SQL query.');
+            }
         }
-
-        if (\in_array(false, $result, true)) {
-            throw new Exception('Error deleting item.');
-        }
-
-        return true;
-    }
-
-    /**
-     * Lock or unlock an item
-     *
-     * @throws Exception
-     * @return bool
-     */
-    public function toggleLock(): bool
-    {
-        // get what is the current state
-        $sql = "SELECT locked FROM items WHERE id = :id";
-        $req = $this->Db->prepare($sql);
-        $req->bindParam(':id', $this->id, PDO::PARAM_INT);
-        $req->execute();
-        $locked = (int) $req->fetchColumn();
-        if ($locked === 1) {
-            $locked = 0;
-        } else {
-            $locked = 1;
-        }
-
-        // toggle
-        $sql = "UPDATE items SET locked = :locked WHERE id = :id";
-        $req = $this->Db->prepare($sql);
-        $req->bindValue(':locked', $locked);
-        $req->bindParam(':id', $this->id, PDO::PARAM_INT);
-
-        return $req->execute();
     }
 }

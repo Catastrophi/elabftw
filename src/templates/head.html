@@ -12,12 +12,12 @@
     <meta http-equiv="Content-type" content="text/html;charset=UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name='referrer' content='origin'>
+    <meta name="csrf-token" content="{{ App.Csrf.getToken }}"/>
     <link rel="icon" type="image/ico" href="app/img/favicon.ico" />
     <title>{{ block('title') }} - eLabFTW</title>
     <!-- see Gruntfile.js and builder.js to see what gets inside these files -->
     <!-- CSS -->
-    <link rel="stylesheet" media="all" href="app/css/elabftw.min.css" />
+    <link rel="stylesheet" media="all" href="app/css/elabftw.min.css?v={{ v }}" />
     <!-- JS -->
     <script src="app/js/main.bundle.js?v={{ v }}"></script>
     <script src="app/js/elabftw.min.js?v={{ v }}"></script>
@@ -26,7 +26,7 @@
 <body>
 
 <!-- container-fluid is from bootstrap -->
-<section id="container" class='container-fluid'>
+<div id="container" class='container-fluid'>
 
 <!-- begin main menu -->
 <nav class='navbar navbar-expand-lg navbar-dark'>
@@ -80,7 +80,7 @@
         <a class="elab-tooltip" href='app/logout.php'><span>{{ 'Logout'|trans }}</span><i class='fas fa-sign-out-alt'></i></a>
     </div>
     <div id='help_container' class='card m2 help-container'>
-        <a href='#' class='close helpClose'>&times</a>
+        <a href='#' class='close helpClose'>&times;</a>
         <ul>
             <li class='tip'>
                 {{ 'There is a manual available %shere%s.'|trans|format("<a href='https://doc.elabftw.net/manual.html'>", "</a>")|raw }}
@@ -131,8 +131,15 @@
 
 <!-- INFO BOX (FLASH MESSAGES) -->
 {% for ok in App.ok %}
-    {{ ok|msg('ok') }}
+  {{ ok|msg('ok') }}
 {% endfor %}
 {% for ko in App.ko %}
-    {{ ko|msg('ko') }}
+  {{ ko|msg('ko') }}
 {% endfor %}
+{% for warning in App.warning %}
+  {{ warning|msg('warning') }}
+{% endfor %}
+<!-- ANNOUNCEMENT -->
+{% if App.Config.configArr.announcement %}
+  {{ App.Config.configArr.announcement|msg('warning') }}
+{% endif %}

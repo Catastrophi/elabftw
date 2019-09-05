@@ -1,7 +1,5 @@
 <?php
 /**
- * \Elabftw\Elabftw\Tools
- *
  * @author Nicolas CARPi <nicolas.carpi@curie.fr>
  * @copyright 2012 Nicolas CARPi
  * @see https://www.elabftw.net Official website
@@ -12,7 +10,9 @@ declare(strict_types=1);
 
 namespace Elabftw\Elabftw;
 
+use Elabftw\Models\Config;
 use InvalidArgumentException;
+use League\CommonMark\CommonMarkConverter;
 use Symfony\Component\HttpFoundation\Request;
 
 /**
@@ -22,31 +22,6 @@ class Tools
 {
     /** @var int DEFAULT_UPLOAD_SIZE max size of uploaded file if we cannot find in in ini file */
     private const DEFAULT_UPLOAD_SIZE = 2;
-
-    /**
-     * Return the current date as YYYYMMDD format if no input
-     * return input if it is a valid date
-     *
-     * @param string|null $input 20160521
-     * @return string
-     */
-    public static function kdate($input = null): string
-    {
-        if ($input !== null
-            && \mb_strlen($input) == '8') {
-            // Check if day/month are good (badly)
-            $datemonth = substr($input, 4, 2);
-            $dateday = substr($input, 6, 2);
-            if (($datemonth <= '12')
-                && ($dateday <= '31')
-                && ($datemonth > '0')
-                && ($dateday > '0')) {
-                // SUCCESS on every test
-                return $input;
-            }
-        }
-        return date('Ymd');
-    }
 
     /**
      * For displaying messages using bootstrap alerts
@@ -78,39 +53,9 @@ class Tools
         $begin = "<div class='alert alert-" . $alert .
             "'><i class='fas " . $icon .
             "'></i>";
-        $end = "</div>";
+        $end = '</div>';
 
         return $begin . $crossLink . ' ' . $message . $end;
-    }
-
-    /**
-     * Sanitize title with a filter_var and remove the line breaks.
-     *
-     * @param string $input The title to sanitize
-     * @return string Will return Untitled if there is no input.
-     */
-    public static function checkTitle(string $input): string
-    {
-        if (empty($input)) {
-            return _('Untitled');
-        }
-        $title = filter_var($input, FILTER_SANITIZE_STRING);
-        // remove linebreak to avoid problem in javascript link list generation on editXP
-        return str_replace(array("\r\n", "\n", "\r"), ' ', $title);
-    }
-
-    /**
-     * Sanitize body with a white list of allowed html tags.
-     *
-     * @param string $input Body to sanitize
-     * @return string The sanitized body or empty string if there is no input
-     */
-    public static function checkBody(string $input): string
-    {
-        $whitelist = "<div><br><br /><p><sub><img><sup><strong><b><em><u><a><s><font><span><ul><li><ol>
-            <blockquote><h1><h2><h3><h4><h5><h6><hr><table><tr><td><code><video><audio><pagebreak><pre>
-            <details><summary><figure><figcaption>";
-        return strip_tags($input, $whitelist);
     }
 
     /**
@@ -121,7 +66,8 @@ class Tools
      */
     public static function md2html(string $md): string
     {
-        return \Michelf\Markdown::defaultTransform($md);
+        $converter = new CommonMarkConverter(array('allow_unsafe_links' => false, 'max_nesting_level' => 42));
+        return \trim($converter->convertToHtml($md), "\n");
     }
 
     /**
@@ -176,23 +122,13 @@ class Tools
      */
     public static function formatBytes(int $bytes): string
     {
-        // nice display of filesize
-        if ($bytes < 1024) {
-            return $bytes . ' B';
-        } elseif ($bytes < 1048576) {
-            return round($bytes / 1024, 2) . ' KiB';
-        } elseif ($bytes < 1073741824) {
-            return round($bytes / 1048576, 2) . ' MiB';
-        } elseif ($bytes < 1099511627776) {
-            return round($bytes / 1073741824, 2) . ' GiB';
-        } elseif ($bytes < 1125899906842624) {
-            return round($bytes / 1099511627776, 2) . ' TiB';
-        }
-        return 'That is a very big file you have there my friend.';
+        $sizes = array('B', 'KiB', 'MiB', 'GiB', 'TiB');
+        $factor = (int) floor((strlen((string) $bytes) - 1) / 3);
+        return sprintf('%.2f', $bytes / 1024** $factor) . ' ' . $sizes[$factor];
     }
 
     /**
-     * Take a 8 digits input and output 2014.08.16
+     * Take a 8 digits input and output 2014.08.16
      *
      * @param string $date Input date '20140302'
      * @param string $s an optionnal param to specify the separator
@@ -216,28 +152,12 @@ class Tools
     public static function getExt(string $filename): string
     {
         // Get file extension
-        $path_info = pathinfo($filename);
-        // if no extension
-        if (!empty($path_info['extension'])) {
-            return $path_info['extension'];
+        $ext = \filter_var(\pathinfo($filename, PATHINFO_EXTENSION), FILTER_SANITIZE_STRING);
+        if ($ext !== null && $ext !== '' && $ext !== false) {
+            return $ext;
         }
 
         return 'unknown';
-    }
-
-    /**
-     * Check ID is valid (pos int)
-     *
-     * @param int $id
-     * @return int|false $id if pos int
-     */
-    public static function checkId(int $id)
-    {
-        $filter_options = array(
-            'options' => array(
-                'min_range' => 1
-            ));
-        return filter_var($id, FILTER_VALIDATE_INT, $filter_options);
     }
 
     /**
@@ -249,9 +169,9 @@ class Tools
     public static function error(bool $permission = false): string
     {
         if ($permission) {
-            return _("This section is out of your reach!");
+            return _('This section is out of your reach!');
         }
-        return _("An error occurred!");
+        return _('An error occurred!');
     }
 
     /**
@@ -268,14 +188,17 @@ class Tools
             'en_GB' => 'en',
             'es_ES' => 'es',
             'fr_FR' => 'fr',
+            'id_ID' => 'id',
             'it_IT' => 'it',
+            'ko_KR' => 'kr',
+            'nl_BE' => 'nl',
             'pl_PL' => 'pl',
             'pt_BR' => 'pt-br',
             'pt_PT' => 'pt',
             'ru_RU' => 'ru',
             'sl_SI' => 'sl',
             'sk_SK' => 'sk',
-            'zh_CN' => 'zh-cn'
+            'zh_CN' => 'zh-cn',
         );
         return $map[$lang];
     }
@@ -287,23 +210,24 @@ class Tools
      */
     public static function getLangsArr(): array
     {
-        $langs = array(
+        return array(
             'ca_ES' => 'Spanish (Catalan)',
             'de_DE' => 'German',
             'en_GB' => 'English (UK)',
             'es_ES' => 'Spanish',
             'fr_FR' => 'French',
+            'id_ID' => 'Indonesian',
             'it_IT' => 'Italian',
+            'ko_KR' => 'Korean',
+            'nl_BE' => 'Dutch',
             'pl_PL' => 'Polish',
             'pt_BR' => 'Portuguese (Brazilian)',
             'pt_PT' => 'Portuguese',
             'ru_RU' => 'Russian',
             'sl_SI' => 'Slovenian',
             'sk_SK' => 'Slovak',
-            'zh_CN' => 'Chinese Simplified'
+            'zh_CN' => 'Chinese Simplified',
         );
-
-        return $langs;
     }
 
     /**
@@ -318,9 +242,9 @@ class Tools
         $html = '<ul>';
         foreach ($arr as $key => $val) {
             if (is_array($val)) {
-                $html .= '<li><span style="color:red;">' . $key . '</span><b> => </b><span style="color:blue;">' . self::printArr($val) . '</span></li>';
+                $html .= '<li><span style="color:red;">' . (string) $key . '</span><b> => </b><span style="color:blue;">' . self::printArr($val) . '</span></li>';
             } else {
-                $html .= '<li><span style="color:red;">' . $key . '</span><b> => </b><span style="color:blue;">' . $val . '</span></li>';
+                $html .= '<li><span style="color:red;">' . (string) $key . '</span><b> => </b><span style="color:blue;">' . $val . '</span></li>';
             }
         }
         $html .= '</ul>';
@@ -356,77 +280,77 @@ class Tools
     }
 
     /**
-     * Get the URL from the Request
+     * Get the URL from the Request
      *
      * @param Request $Request
      * @return string the url
      */
     public static function getUrlFromRequest(Request $Request): string
     {
-        return $Request->getScheme() . '://' . $Request->getHost() . ':' . $Request->getPort() . $Request->getBasePath();
+        $url = $Request->getScheme() . '://' . $Request->getHost() . ':' . (string) $Request->getPort() . $Request->getBasePath();
+        return \str_replace('app/controllers', '', $url);
     }
 
     /**
-     * Get the correct class for icon from the extension
+     * Build an SQL string for searching something
      *
-     * @param string $ext Extension of the file
-     * @return string Class of the fa icon
+     * @param string $query the searched string
+     * @param string $andor behavior of the space character
+     * @param string $column the column to search into
+     * @param string $table on which table to do the search
+     * @return string
      */
-    public static function getIconFromExtension(string $ext): string
+    public static function getSearchSql(string $query, string $andor = 'and', string $column = '', string $table = ''): string
     {
-        switch ($ext) {
-            // ARCHIVE
-            case 'zip':
-            case 'rar':
-            case 'xz':
-            case 'gz':
-            case 'tgz':
-            case '7z':
-            case 'bz2':
-            case 'tar':
-                return 'fa-file-archive';
-
-            // CODE
-            case 'py':
-            case 'jupyter':
-            case 'js':
-            case 'm':
-            case 'r':
-            case 'R':
-                return 'fa-file-code';
-
-            // EXCEL
-            case 'xls':
-            case 'xlsx':
-            case 'ods':
-            case 'csv':
-                return 'fa-file-excel';
-
-            // POWERPOINT
-            case 'ppt':
-            case 'pptx':
-            case 'pps':
-            case 'ppsx':
-            case 'odp':
-                return 'fa-file-powerpoint';
-
-            // VIDEO
-            case 'mov':
-            case 'avi':
-            case 'mp4':
-            case 'wmv':
-            case 'mpeg':
-            case 'flv':
-                return 'fa-file-video';
-
-            // WORD
-            case 'doc':
-            case 'docx':
-            case 'odt':
-                return 'fa-file-word';
-
-            default:
-                return 'fa-file';
+        $sql = ' AND ';
+        // search character is the separator for and/or
+        $qArr = \explode(' ', $query);
+        $sql .= '(';
+        foreach ($qArr as $key => $value) {
+            // add the andor after the first
+            if ($key !== 0) {
+                $sql .= $andor;
+            }
+            if ($column === '') {
+                // do quicksearch
+                if ($table === 'experiments') {
+                    // add elabid to the search columns
+                    $sql .= "(title LIKE '%$value%' OR date LIKE '%$value%' OR body LIKE '%$value%' OR elabid LIKE '%$value%')";
+                } else {
+                    // quicksearch from database
+                    $sql .= "(title LIKE '%$value%' OR date LIKE '%$value%' OR body LIKE '%$value%')";
+                }
+            } else {
+                // from search page
+                $sql .= $table . '.' . $column . " LIKE '%$value%'";
+            }
         }
+        $sql .= ')';
+        return $sql;
+    }
+
+    /**
+     * Get an array of integer with valid number of items per page based on the current limit
+     *
+     * @param int $input the current limit for the page
+     * @return array
+     */
+    public static function getLimitOptions(int $input): array
+    {
+        $limits = array(10, 20, 50, 100);
+        // if the current limit is already a standard one, no need to include it
+        if (\in_array($input, $limits, true)) {
+            return $limits;
+        }
+        // now find the place where to include our limit
+        $place = count($limits);
+        foreach ($limits as $key => $limit) {
+            if ($input < $limit) {
+                $place = $key;
+                break;
+            }
+        }
+        array_splice($limits, $place, 0, array($input));
+        return $limits;
     }
 }
