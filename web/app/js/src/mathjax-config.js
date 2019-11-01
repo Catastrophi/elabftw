@@ -6,17 +6,22 @@
  * @package elabftw
  */
 window.MathJax = {
-  extensions: ['tex2jax.js'],
-  jax: ['input/TeX', 'output/HTML-CSS'],
-  tex2jax: {
+  tex: {
     inlineMath: [ ['$','$'], ['\\(','\\)'] ],
     displayMath: [ ['$$','$$'], ['\\[','\\]'] ],
-    processEscapes: true
+    processEscapes: true,
+    packages: ['base', 'ams','autoload'],
   },
-  'HTML-CSS': {
-    fonts: ['TeX']
-  },
-  TeX: {
-    extensions: ['autoload-all.js']
+  svg: {
+    fontCache: 'global'
   }
 };
+
+
+(function () {
+  var script = document.createElement('script');
+  //script.src = 'app/js/mathjax/es5/tex-chtml-full.js';
+  script.src = 'app/js/mathjax/es5/tex-svg-full.js';
+  script.async = true;
+  document.head.appendChild(script);
+})();
